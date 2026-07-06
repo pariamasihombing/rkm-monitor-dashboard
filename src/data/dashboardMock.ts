@@ -59,8 +59,8 @@ export const programs = [
 
 export const statuses = [
   "All",
-  "On Track",
-  "Behind Expected",
-  "Overdue",
-  "Due Soon",
+  "Not Started",
+  "On Progress",
+  "Hold",
+  "Done",
 ];

@@ -17,13 +17,12 @@ import {
   TrendingDown as TrendingDownIcon,
   AccessTime as AccessTimeIcon,
 } from "@mui/icons-material";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import ProfileMenu from "../components/ProfileMenu";
 import {
   dashboardMetrics,
   targetAchievement,
-  alerts,
   programs,
   statuses,
 } from "../data/dashboardMock";
@@ -123,14 +122,56 @@ const statusData = [
   { name: "Hold", value: 10, color: "#9C27B0" },
 ];
 
+/* ================= DEFAULT STATE ================= */
+
+const defaultDashboard = {
+  totalProgram: 0,
+  totalTask: 0,
+  onTrack: 0,
+  behindExpected: 0,
+  overdue: 0,
+  dueSoon: 0,
+  chartData: {
+    trendChart: { labels: ["W-4", "W-3", "W-2", "W-1", "Current"], expected: [0, 0, 0, 0, 0], actual: [0, 0, 0, 0, 0] },
+    statusBreakdown: {
+      labels: ["Done", "On Progress", "Not Started", "Hold"],
+      values: [0, 0, 0, 0],
+      colors: ["#4CAF50", "#2196F3", "#FF9800", "#9C27B0"],
+    },
+  },
+  targetAchievement: { actualProgress: 0, expectedProgress: 0, gap: 0 },
+  alerts: [] as any[],
+};
+
 /* ================= COMPONENT ================= */
 
 export default function PICDashboard() {
   const navigate = useNavigate();
   const [selectedStatus, setSelectedStatus] = useState("All");
-  const [selectedProgram, setSelectedProgram] = useState("All Programs");
+  const [selectedAlarm, setSelectedAlarm] = useState("All");
+  const [selectedPIC, setSelectedPIC] = useState("All");
+  const [selectedDate, setSelectedDate] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [profileAnchor, setProfileAnchor] = useState<HTMLElement | null>(null);
   const [activeMenu, setActiveMenu] = useState("Dashboard");
+  const [dashData, setDashData] = useState(defaultDashboard);
+
+  useEffect(() => {
+    const delay = setTimeout(() => {
+      const params = new URLSearchParams();
+      if (selectedStatus && selectedStatus !== "All") params.append("status", selectedStatus);
+      if (selectedAlarm && selectedAlarm !== "All") params.append("alarm", selectedAlarm);
+      if (selectedPIC && selectedPIC !== "All") params.append("pic", selectedPIC);
+      if (selectedDate) params.append("date", selectedDate);
+      if (searchQuery) params.append("search", searchQuery);
+
+      fetch(`http://localhost:8000/api/dashboard?${params.toString()}`)
+        .then((r) => r.json())
+        .then((data) => setDashData(data))
+        .catch(() => setDashData(defaultDashboard));
+    }, 400);
+    return () => clearTimeout(delay);
+  }, [selectedStatus, selectedAlarm, selectedPIC, selectedDate, searchQuery]);
 
   const MetricCard = ({
     label,
@@ -272,128 +313,88 @@ export default function PICDashboard() {
         <Box id="dashboard-content" sx={{ p: 4, maxWidth: 1200, mx: "auto", pb: 6 }}>
           {/* FILTER */}
           <Card sx={{ mb: 3, boxShadow: "0 2px 12px rgba(21,101,192,0.04)", bgcolor: "#FFFFFF" }}>
-            <CardContent sx={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 5, pt: 3, pb: 4, px: 4 }}>
+            <CardContent sx={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 3, pt: 3, pb: 4, px: 4 }}>
+              {/* Status */}
               <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
                 <Typography variant="caption" sx={{ display: "block", mb: 0.5, fontWeight: 600, fontSize: "0.85rem", color: "#727989" }}>
                   Status
                 </Typography>
                 <TextField
-                  select
-                  size="small"
-                  value={selectedStatus}
+                  select size="small" value={selectedStatus}
                   onChange={(e) => setSelectedStatus(e.target.value)}
                   fullWidth
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      borderRadius: "5px",
-                      "& fieldset": {
-                        borderColor: "rgba(83, 83, 83, 0.21)",
-                      },
-                      "&:hover fieldset": {
-                        borderColor: "rgba(83, 83, 83, 0.21)",
-                      },
-                    },
-                    "& .MuiOutlinedInput-input": {
-                      color: "#000000",
-                    },
-                  }}
+                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "5px", "& fieldset": { borderColor: "rgba(83,83,83,0.21)" }, "&:hover fieldset": { borderColor: "rgba(83,83,83,0.21)" } }, "& .MuiOutlinedInput-input": { color: "#000" } }}
                 >
-                  {statuses.map((s) => (
-                    <MenuItem key={s} value={s}>{s}</MenuItem>
-                  ))}
+                  {statuses.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
                 </TextField>
               </Box>
 
+              {/* Alarm */}
               <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
                 <Typography variant="caption" sx={{ display: "block", mb: 0.5, fontWeight: 600, fontSize: "0.85rem", color: "#727989" }}>
-                  Program
+                  Alarm
                 </Typography>
                 <TextField
-                  select
-                  size="small"
-                  value={selectedProgram}
-                  onChange={(e) => setSelectedProgram(e.target.value)}
+                  select size="small" value={selectedAlarm}
+                  onChange={(e) => setSelectedAlarm(e.target.value)}
                   fullWidth
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      borderRadius: "5px",
-                      "& fieldset": {
-                        borderColor: "rgba(83, 83, 83, 0.21)",
-                      },
-                      "&:hover fieldset": {
-                        borderColor: "rgba(83, 83, 83, 0.21)",
-                      },
-                    },
-                    "& .MuiOutlinedInput-input": {
-                      color: "#000000",
-                    },
-                  }}
+                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "5px", "& fieldset": { borderColor: "rgba(83,83,83,0.21)" }, "&:hover fieldset": { borderColor: "rgba(83,83,83,0.21)" } }, "& .MuiOutlinedInput-input": { color: "#000" } }}
                 >
-                  {programs.map((p) => (
-                    <MenuItem key={p} value={p}>{p}</MenuItem>
-                  ))}
+                  <MenuItem value="All">All</MenuItem>
+                  <MenuItem value="On Track">On Track</MenuItem>
+                  <MenuItem value="Behind Expected">Behind Expected</MenuItem>
+                  <MenuItem value="Due Soon">Due Soon</MenuItem>
+                  <MenuItem value="Overdue">Overdue</MenuItem>
                 </TextField>
               </Box>
 
+              {/* PIC */}
+              <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                <Typography variant="caption" sx={{ display: "block", mb: 0.5, fontWeight: 600, fontSize: "0.85rem", color: "#727989" }}>
+                  PIC
+                </Typography>
+                <TextField
+                  select size="small" value={selectedPIC}
+                  onChange={(e) => setSelectedPIC(e.target.value)}
+                  fullWidth
+                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "5px", "& fieldset": { borderColor: "rgba(83,83,83,0.21)" }, "&:hover fieldset": { borderColor: "rgba(83,83,83,0.21)" } }, "& .MuiOutlinedInput-input": { color: "#000" } }}
+                >
+                  <MenuItem value="All">All</MenuItem>
+                  <MenuItem value="Raghi">Raghi</MenuItem>
+                  <MenuItem value="Fero">Fero</MenuItem>
+                  <MenuItem value="Suci">Suci</MenuItem>
+                  <MenuItem value="Hendra">Hendra</MenuItem>
+                  <MenuItem value="Reza">Reza</MenuItem>
+                  <MenuItem value="VP Joni">VP Joni</MenuItem>
+                  <MenuItem value="VP Surya">VP Surya</MenuItem>
+                </TextField>
+              </Box>
+
+              {/* Date Range */}
               <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
                 <Typography variant="caption" sx={{ display: "block", mb: 0.5, fontWeight: 600, fontSize: "0.85rem", color: "#727989" }}>
                   Date Range
                 </Typography>
                 <TextField
-                  type="date"
-                  size="small"
+                  type="date" size="small" value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
                   fullWidth
-                  placeholder="Select date range"
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      borderRadius: "5px",
-                      "& fieldset": {
-                        borderColor: "rgba(83, 83, 83, 0.21)",
-                      },
-                      "&:hover fieldset": {
-                        borderColor: "rgba(83, 83, 83, 0.21)",
-                      },
-                    },
-                    "& .MuiOutlinedInput-input": {
-                      color: "#B0BBD5",
-                      "&::placeholder": {
-                        color: "#B0BBD5",
-                        opacity: 1,
-                      },
-                    },
-                  }}
+                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "5px", "& fieldset": { borderColor: "rgba(83,83,83,0.21)" }, "&:hover fieldset": { borderColor: "rgba(83,83,83,0.21)" } }, "& .MuiOutlinedInput-input": { color: "#B0BBD5" } }}
                 />
               </Box>
 
+              {/* Search */}
               <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
                 <Typography variant="caption" sx={{ display: "block", mb: 0.5, fontWeight: 600, fontSize: "0.85rem", color: "#727989" }}>
                   Search
                 </Typography>
                 <TextField
-                  size="small"
+                  size="small" value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search Program..."
                   fullWidth
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      borderRadius: "5px",
-                      "& fieldset": {
-                        borderColor: "rgba(83, 83, 83, 0.21)",
-                      },
-                      "&:hover fieldset": {
-                        borderColor: "rgba(83, 83, 83, 0.21)",
-                      },
-                    },
-                    "& .MuiOutlinedInput-input": {
-                      color: "#B0BBD5",
-                      "&::placeholder": {
-                        color: "#B0BBD5",
-                        opacity: 1,
-                      },
-                    },
-                  }}
-                  InputProps={{
-                    endAdornment: <SearchIcon sx={{ fontSize: 18, color: "#9CA3AF" }} />
-                  }}
+                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "5px", "& fieldset": { borderColor: "rgba(83,83,83,0.21)" }, "&:hover fieldset": { borderColor: "rgba(83,83,83,0.21)" } }, "& .MuiOutlinedInput-input": { color: "#B0BBD5" } }}
+                  InputProps={{ endAdornment: <SearchIcon sx={{ fontSize: 18, color: "#9CA3AF" }} /> }}
                 />
               </Box>
             </CardContent>
@@ -402,12 +403,12 @@ export default function PICDashboard() {
           {/* METRICS */}
           <Box sx={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: 2, mb: 4 }}>
             {[
-              { label: "Total Program/RKM", value: dashboardMetrics.totalProgram, color: "#2865FD" },
-              { label: "Total Task", value: dashboardMetrics.totalTask, color: "#0C4B7D" },
-              { label: "On Track", value: dashboardMetrics.onTrack, color: "#009E6D" },
-              { label: "Behind Expected", value: dashboardMetrics.behindExpected, color: "#E07800" },
-              { label: "Overdue", value: dashboardMetrics.overdue, color: "#E9004A" },
-              { label: "Due Soon", value: dashboardMetrics.dueSoon, color: "#F15300" },
+              { label: "Total Program/RKM", value: dashData.totalProgram, color: "#2865FD" },
+              { label: "Total Task", value: dashData.totalTask, color: "#0C4B7D" },
+              { label: "On Track", value: dashData.onTrack, color: "#009E6D" },
+              { label: "Behind Expected", value: dashData.behindExpected, color: "#E07800" },
+              { label: "Overdue", value: dashData.overdue, color: "#E9004A" },
+              { label: "Due Soon", value: dashData.dueSoon, color: "#F15300" },
             ].map((m, i) => (
               <div key={m.label} className={`anim-fadein-up anim-d${i + 1} card-hover`}>
                 <MetricCard label={m.label} value={m.value} color={m.color} />
@@ -441,7 +442,14 @@ export default function PICDashboard() {
                 </Box>
                 <Box sx={{ width: "100%", height: 300 }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={trendData} margin={{ right: 20, left: -10, bottom: 5, top: 30 }}>
+                    <AreaChart
+                      data={dashData.chartData.trendChart.labels.map((label: string, i: number) => ({
+                        name: label,
+                        Expected: dashData.chartData.trendChart.expected[i] ?? 0,
+                        Actual: dashData.chartData.trendChart.actual[i] ?? 0,
+                      }))}
+                      margin={{ right: 20, left: -10, bottom: 5, top: 30 }}
+                    >
                       <defs>
                         <linearGradient id="gradActual" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%" stopColor="#10B981" stopOpacity={0.25} />
@@ -515,7 +523,11 @@ export default function PICDashboard() {
                   <ResponsiveContainer width="100%" height={250}>
                     <PieChart>
                       <Pie
-                        data={statusData}
+                        data={dashData.chartData.statusBreakdown.labels.map((label: string, i: number) => ({
+                          name: label,
+                          value: dashData.chartData.statusBreakdown.values[i] ?? 0,
+                          color: dashData.chartData.statusBreakdown.colors[i] ?? "#ccc",
+                        }))}
                         innerRadius={68}
                         outerRadius={105}
                         dataKey="value"
@@ -524,14 +536,14 @@ export default function PICDashboard() {
                         label={renderPieLabel}
                         labelLine={false}
                       >
-                        {statusData.map((s) => (
-                          <Cell 
-                            key={s.name} 
-                            fill={s.color} 
-                            style={{ 
+                        {dashData.chartData.statusBreakdown.labels.map((label: string, i: number) => (
+                          <Cell
+                            key={label}
+                            fill={dashData.chartData.statusBreakdown.colors[i] ?? "#ccc"}
+                            style={{
                               filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.12))",
                               transition: "all 0.3s ease"
-                            }} 
+                            }}
                           />
                         ))}
                       </Pie>
@@ -557,7 +569,7 @@ export default function PICDashboard() {
                   {/* Center Label */}
                   <Box sx={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", textAlign: "center" }}>
                     <Typography fontSize="1.8rem" fontWeight={800} color="#1E293B" lineHeight={1} sx={{ letterSpacing: "-1px" }}>
-                      {statusData.reduce((a, b) => a + b.value, 0)}
+                      {dashData.chartData.statusBreakdown.values.reduce((a: number, b: number) => a + b, 0)}
                     </Typography>
                     <Typography fontSize="0.75rem" fontWeight={600} color="#94A3B8" sx={{ mt: 0.3, letterSpacing: "0.5px" }}>
                       Total
@@ -566,17 +578,17 @@ export default function PICDashboard() {
                 </Box>
                 {/* Legend */}
                 <Box sx={{ display: "flex", gap: 2, justifyContent: "center", flexWrap: "wrap", mt: 1 }}>
-                  {statusData.map((s) => (
-                    <Box 
-                      key={s.name} 
-                      sx={{ 
-                        display: "flex", 
-                        alignItems: "center", 
-                        gap: 0.8, 
-                        px: 1.5, 
-                        py: 0.7, 
-                        bgcolor: "#F8FAFC", 
-                        borderRadius: "10px", 
+                  {dashData.chartData.statusBreakdown.labels.map((label: string, i: number) => (
+                    <Box
+                      key={label}
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 0.8,
+                        px: 1.5,
+                        py: 0.7,
+                        bgcolor: "#F8FAFC",
+                        borderRadius: "10px",
                         border: "1px solid #EAEEF7",
                         transition: "all 0.25s ease",
                         "&:hover": {
@@ -586,8 +598,8 @@ export default function PICDashboard() {
                           boxShadow: "0 4px 12px rgba(21,101,192,0.08)"
                         }
                       }}>
-                      <Box sx={{ width: 10, height: 10, borderRadius: "4px", bgcolor: s.color, boxShadow: `0 2px 6px ${s.color}33` }} />
-                      <Typography fontSize="0.8rem" fontWeight={600} color="#64748B" sx={{ letterSpacing: "0.2px" }}>{s.name}</Typography>
+                      <Box sx={{ width: 10, height: 10, borderRadius: "4px", bgcolor: dashData.chartData.statusBreakdown.colors[i], boxShadow: `0 2px 6px ${dashData.chartData.statusBreakdown.colors[i]}33` }} />
+                      <Typography fontSize="0.8rem" fontWeight={600} color="#64748B" sx={{ letterSpacing: "0.2px" }}>{label}</Typography>
                     </Box>
                   ))}
                 </Box>
@@ -614,19 +626,18 @@ export default function PICDashboard() {
                     width: 16,
                     height: 16,
                     borderRadius: "50%",
-                    bgcolor: 
-                      (targetAchievement.actualProgress / targetAchievement.expectedProgress) >= 1
+                    bgcolor:
+                      (dashData.targetAchievement.actualProgress / dashData.targetAchievement.expectedProgress) >= 1
                         ? "#10B981"
-                        : (targetAchievement.actualProgress / targetAchievement.expectedProgress) >= 0.9
+                        : (dashData.targetAchievement.actualProgress / dashData.targetAchievement.expectedProgress) >= 0.9
                           ? "#FF9800"
                           : "#E9004A",
-                    boxShadow: `0 2px 8px ${
-                      (targetAchievement.actualProgress / targetAchievement.expectedProgress) >= 1
+                    boxShadow: `0 2px 8px ${(dashData.targetAchievement.actualProgress / dashData.targetAchievement.expectedProgress) >= 1
                         ? "rgba(16,185,129,0.4)"
-                        : (targetAchievement.actualProgress / targetAchievement.expectedProgress) >= 0.9
+                        : (dashData.targetAchievement.actualProgress / dashData.targetAchievement.expectedProgress) >= 0.9
                           ? "rgba(255,152,0,0.4)"
                           : "rgba(233,0,74,0.4)"
-                    }`,
+                      }`,
                   }}
                 />
               </Box>
@@ -644,7 +655,7 @@ export default function PICDashboard() {
                     Actual Progress
                   </Typography>
                   <Typography fontSize={28} fontWeight={700} color="#2865FD">
-                    {targetAchievement.actualProgress}%
+                    {dashData.targetAchievement.actualProgress}%
                   </Typography>
                 </Box>
 
@@ -653,7 +664,7 @@ export default function PICDashboard() {
                     Expected Progress
                   </Typography>
                   <Typography fontSize={28} fontWeight={700} color="#0C4B7D">
-                    {targetAchievement.expectedProgress}%
+                    {dashData.targetAchievement.expectedProgress}%
                   </Typography>
                 </Box>
 
@@ -662,7 +673,7 @@ export default function PICDashboard() {
                     Gap
                   </Typography>
                   <Typography fontSize={28} fontWeight={700} color="#E07800">
-                    {targetAchievement.gap}%
+                    {dashData.targetAchievement.gap}%
                   </Typography>
                 </Box>
               </Box>
@@ -674,7 +685,7 @@ export default function PICDashboard() {
                     Expected
                   </Typography>
                   <Typography fontSize={13} fontWeight={600} color="#0C4B7D">
-                    {targetAchievement.expectedProgress}%
+                    {dashData.targetAchievement.expectedProgress}%
                   </Typography>
                 </Box>
                 <Box sx={{ height: 6, bgcolor: "#B0BBD5", borderRadius: 2, overflow: "hidden" }}>
@@ -682,7 +693,7 @@ export default function PICDashboard() {
                     className="progress-fill"
                     sx={{
                       height: "100%",
-                      width: `${targetAchievement.expectedProgress}%`,
+                      width: `${dashData.targetAchievement.expectedProgress}%`,
                       bgcolor: "#0C4B7D",
                       borderRadius: 2,
                     }}
@@ -697,7 +708,7 @@ export default function PICDashboard() {
                     Actual
                   </Typography>
                   <Typography fontSize={13} fontWeight={600} color="#2865FD">
-                    {targetAchievement.actualProgress}%
+                    {dashData.targetAchievement.actualProgress}%
                   </Typography>
                 </Box>
                 <Box sx={{ height: 6, bgcolor: "#B0BBD5", borderRadius: 2, overflow: "hidden" }}>
@@ -705,7 +716,7 @@ export default function PICDashboard() {
                     className="progress-fill"
                     sx={{
                       height: "100%",
-                      width: `${targetAchievement.actualProgress}%`,
+                      width: `${dashData.targetAchievement.actualProgress}%`,
                       bgcolor: "#2865FD",
                       borderRadius: 2,
                     }}
@@ -730,10 +741,15 @@ export default function PICDashboard() {
 
               {/* ALERT ITEM */}
               <Box sx={{ display: "grid", gap: 1.5 }}>
-                {alerts.map((alert, i) => (
-                  <Box
-                    key={alert.id}
-                    className="anim-fadein-up"
+                {dashData.alerts.length === 0 ? (
+                  <Typography align="center" color="text.secondary" sx={{ py: 3, fontWeight: 500, fontSize: "0.9rem" }}>
+                    Tidak ada alert saat ini.
+                  </Typography>
+                ) : (
+                  dashData.alerts.map((alert: any, i: number) => (
+                    <Box
+                      key={i}
+                      className="anim-fadein-up"
                     style={{ animationDelay: `${0.35 + i * 0.07}s` }}
                     sx={{
                       display: "flex",
@@ -746,7 +762,7 @@ export default function PICDashboard() {
                       "&:hover": { bgcolor: "#F3F6FB" },
                       borderLeft: `8px solid ${alert.status === "OVERDUE"
                         ? "#C60041"
-                        : alert.status === "BEHIND"
+                        : alert.status === "BEHIND_EXPECTED"
                           ? "#BB5600"
                           : "#C93F00"
                         }`,
@@ -765,20 +781,20 @@ export default function PICDashboard() {
                           bgcolor:
                             alert.status === "OVERDUE"
                               ? "#C60041"
-                              : alert.status === "BEHIND"
+                              : alert.status === "BEHIND_EXPECTED"
                                 ? "#BB5600"
                                 : "#C93F00",
                           color:
                             alert.status === "OVERDUE"
                               ? "#FEF2F3"
-                              : alert.status === "BEHIND"
+                              : alert.status === "BEHIND_EXPECTED"
                                 ? "#FFFBEB"
                                 : "#FFF8EE",
                           fontWeight: 700,
                           borderRadius: "10px",
                           border: `1.5px solid ${alert.status === "OVERDUE"
                             ? "#FDCFD5"
-                            : alert.status === "BEHIND"
+                            : alert.status === "BEHIND_EXPECTED"
                               ? "#FDE78A"
                               : "#FED9AB"
                             }`,
@@ -791,10 +807,10 @@ export default function PICDashboard() {
                         {alert.status === "OVERDUE" && (
                           <WarningIcon sx={{ fontSize: "1.1rem" }} />
                         )}
-                        {alert.status === "BEHIND" && (
+                        {alert.status === "BEHIND_EXPECTED" && (
                           <TrendingDownIcon sx={{ fontSize: "1.1rem" }} />
                         )}
-                        {alert.status === "DUE SOON" && (
+                        {alert.status === "DUE_SOON" && (
                           <AccessTimeIcon sx={{ fontSize: "1.1rem" }} />
                         )}
                         <Typography sx={{ fontWeight: 700, fontSize: "0.7rem", letterSpacing: "1px" }}>
@@ -859,7 +875,8 @@ export default function PICDashboard() {
                       </Box>
                     </Box>
                   </Box>
-                ))}
+                ))
+              )}
               </Box>
             </CardContent>
           </Card>

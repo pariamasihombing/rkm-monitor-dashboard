@@ -7,11 +7,95 @@ use Illuminate\Http\Request;
 
 class ProgramController extends Controller
 {
-    public function index()
+    protected $progressService;
+
+    public function __construct(\App\Services\ProgressService $progressService)
     {
-        // Mengambil semua program beserta status, tahapan, dan subtask untuk menghitung progress
-        $programs = Program::with(['status', 'stages.subtasks'])->get();
-        return response()->json($programs);
+        $this->progressService = $progressService;
+    }
+
+    public function index(Request $request)
+    {
+        // Build base query with eager loading
+        $query = Program::with(['status', 'pics', 'stages.subtasks']);
+
+        // === A. Filter Database (sebelum ->get()) ===
+
+        // Filter Status (via relasi status)
+        if ($request->filled('status') && $request->status !== 'All') {
+            $query->whereHas('status', function ($q) use ($request) {
+                $q->where('name', $request->status);
+            });
+        }
+
+        // Filter PIC (Cek di relasi 'pics' ATAU di kolom 'pic' langsung)
+        if ($request->filled('pic') && $request->pic !== 'All') {
+            $keyword = $request->pic;
+            $query->where(function($q) use ($keyword) {
+                $q->whereHas('pics', function ($q2) use ($keyword) {
+                    $q2->where('name', 'LIKE', '%' . $keyword . '%');
+                })->orWhere('pic', 'LIKE', '%' . $keyword . '%');
+            });
+        }
+
+        // Filter Search (nama program)
+        if ($request->filled('search')) {
+            $query->where('name', 'LIKE', '%' . $request->search . '%');
+        }
+
+        // Filter Program ID
+        if ($request->filled('program_id')) {
+            $query->where('id_program', $request->program_id);
+        }
+
+        // Filter Date (plan_start <= date <= plan_finish)
+        if ($request->filled('date')) {
+            $query->where('plan_start', '<=', $request->date)
+                  ->where('plan_finish', '>=', $request->date);
+        }
+
+        $programs = $query->get();
+        
+        // === Transform: hitung metrics via ProgressService ===
+        $programs->transform(function ($program) {
+            $metrics = $this->progressService->calculateMetrics($program, 'program');
+            $program->expected_progress = $metrics['expected_progress'];
+            $program->actual_progress = $metrics['actual_progress'];
+            $program->gap = $metrics['gap'];
+            $program->indicator = $metrics['indicator'];
+
+            $program->stages->transform(function ($stage) {
+                $stageMetrics = $this->progressService->calculateMetrics($stage, 'stage');
+                $stage->expected_progress = $stageMetrics['expected_progress'];
+                $stage->actual_progress = $stageMetrics['actual_progress'];
+                $stage->gap = $stageMetrics['gap'];
+                $stage->indicator = $stageMetrics['indicator'];
+
+                $stage->subtasks->transform(function ($subtask) {
+                    $subtaskMetrics = $this->progressService->calculateMetrics($subtask, 'subtask');
+                    $subtask->expected_progress = $subtaskMetrics['expected_progress'];
+                    $subtask->actual_progress = $subtaskMetrics['actual_progress'];
+                    $subtask->gap = $subtaskMetrics['gap'];
+                    $subtask->indicator = $subtaskMetrics['indicator'];
+                    return $subtask;
+                });
+
+                return $stage;
+            });
+
+            return $program;
+        });
+
+        // === B. Filter Memory (setelah transform, karena indicator dihitung dinamis) ===
+
+        // Filter Alarm (indicator: On Track, Behind, Due Soon, Overdue, Completed)
+        if ($request->filled('alarm') && $request->alarm !== 'All') {
+            $programs = $programs->filter(function ($program) use ($request) {
+                return $program->indicator === $request->alarm;
+            });
+        }
+
+        return response()->json($programs->values());
     }
 
     public function show($id)
@@ -23,6 +107,41 @@ class ProgramController extends Controller
         if (!$program) {
             return response()->json(['message' => 'Program not found'], 404);
         }
+
+        // Calculate Program Metrics
+        $programMetrics = $this->progressService->calculateMetrics($program, 'program');
+        $program->expected_progress = $programMetrics['expected_progress'];
+        $program->actual_progress = $programMetrics['actual_progress'];
+        $program->gap = $programMetrics['gap'];
+        $program->indicator = $programMetrics['indicator'];
+
+        // S-Curve Data
+        $program->expected_line = $this->progressService->getExpectedLine($program);
+        $program->actual_line = \Illuminate\Support\Facades\DB::table('program_progress_logs')
+            ->where('id_program', $id)
+            ->orderBy('recorded_at', 'asc')
+            ->get();
+
+        // Calculate Stage Metrics
+        $program->stages->transform(function ($stage) {
+            $stageMetrics = $this->progressService->calculateMetrics($stage, 'stage');
+            $stage->expected_progress = $stageMetrics['expected_progress'];
+            $stage->actual_progress = $stageMetrics['actual_progress'];
+            $stage->gap = $stageMetrics['gap'];
+            $stage->indicator = $stageMetrics['indicator'];
+
+            // Calculate Subtask Metrics
+            $stage->subtasks->transform(function ($subtask) {
+                $subtaskMetrics = $this->progressService->calculateMetrics($subtask, 'subtask');
+                $subtask->expected_progress = $subtaskMetrics['expected_progress'];
+                $subtask->actual_progress = $subtaskMetrics['actual_progress'];
+                $subtask->gap = $subtaskMetrics['gap'];
+                $subtask->indicator = $subtaskMetrics['indicator'];
+                return $subtask;
+            });
+
+            return $stage;
+        });
 
         return response()->json($program);
     }

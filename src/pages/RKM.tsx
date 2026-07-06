@@ -73,25 +73,35 @@ interface Program {
 export default function RKM() {
   const navigate = useNavigate();
   const [selectedStatus, setSelectedStatus] = useState("All");
+  const [selectedAlarm, setSelectedAlarm] = useState("All");
   const [selectedPIC, setSelectedPIC] = useState("All");
+  const [selectedDate, setSelectedDate] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [profileAnchor, setProfileAnchor] = useState<HTMLElement | null>(null);
   const [activeMenu, setActiveMenu] = useState("RKM / Program");
-  const [activeTab, setActiveTab] = useState("Program");
-  
+
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchPrograms();
-  }, []);
+  }, [selectedStatus, selectedAlarm, selectedPIC, selectedDate, searchQuery]);
 
   const fetchPrograms = async () => {
     setLoading(true);
     try {
-      const response = await fetch("http://localhost:8000/api/programs");
+      const params = new URLSearchParams();
+      if (selectedStatus !== "All") params.append("status", selectedStatus);
+      if (selectedAlarm !== "All") params.append("alarm", selectedAlarm);
+      if (selectedPIC !== "All") params.append("pic", selectedPIC);
+      if (selectedDate) params.append("date", selectedDate);
+      if (searchQuery) params.append("search", searchQuery);
+
+      const response = await fetch(`http://localhost:8000/api/programs?${params.toString()}`);
       const data = await response.json();
-      // Filter for RKM programs
-      setPrograms(data.filter((p: Program) => p.type === "RKM"));
+      
+      const dataArray = Array.isArray(data) ? data : (data.data || []);
+      setPrograms(dataArray.filter((p: Program) => p.type === "RKM"));
     } catch (error) {
       console.error("Error fetching programs:", error);
     } finally {
@@ -99,17 +109,7 @@ export default function RKM() {
     }
   };
 
-  const allStages = programs.flatMap(p => (p.stages || []).map(s => ({
-    ...s,
-    programName: p.name,
-    programId: p.id_program
-  })));
 
-  const getStageProgress = (stage: Stage) => {
-    if (!stage.subtasks || stage.subtasks.length === 0) return 0;
-    const completed = stage.subtasks.filter(t => t.status?.name === "Done").length;
-    return Math.round((completed / stage.subtasks.length) * 100);
-  };
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "#F7F9FB" }}>
@@ -230,7 +230,7 @@ export default function RKM() {
         <Box sx={{ p: 4, maxWidth: 1400, mx: "auto", pb: 15 }}>
           {/* FILTER */}
           <Card sx={{ mb: 3, boxShadow: "0 2px 12px rgba(21,101,192,0.04)", bgcolor: "#FFFFFF" }}>
-            <CardContent sx={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 5, pt: 3, pb: 4, px: 4 }}>
+            <CardContent sx={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 5, pt: 3, pb: 4, px: 4 }}>
               <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
                 <Typography variant="caption" sx={{ display: "block", mb: 0.5, fontWeight: 600, fontSize: "0.85rem", color: "#727989" }}>
                   Status
@@ -258,6 +258,33 @@ export default function RKM() {
 
               <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
                 <Typography variant="caption" sx={{ display: "block", mb: 0.5, fontWeight: 600, fontSize: "0.85rem", color: "#727989" }}>
+                  Alarm
+                </Typography>
+                <TextField
+                  select
+                  size="small"
+                  value={selectedAlarm}
+                  onChange={(e) => setSelectedAlarm(e.target.value)}
+                  fullWidth
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      borderRadius: "5px",
+                      "& fieldset": { borderColor: "rgba(83, 83, 83, 0.21)" },
+                      "&:hover fieldset": { borderColor: "rgba(83, 83, 83, 0.21)" },
+                    },
+                    "& .MuiOutlinedInput-input": { color: "#000000" },
+                  }}
+                >
+                  <MenuItem value="All">All</MenuItem>
+                  <MenuItem value="On Track">On Track</MenuItem>
+                  <MenuItem value="Behind Expected">Behind Expected</MenuItem>
+                  <MenuItem value="Due Soon">Due Soon</MenuItem>
+                  <MenuItem value="Overdue">Overdue</MenuItem>
+                </TextField>
+              </Box>
+
+              <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                <Typography variant="caption" sx={{ display: "block", mb: 0.5, fontWeight: 600, fontSize: "0.85rem", color: "#727989" }}>
                   PIC
                 </Typography>
                 <TextField
@@ -276,7 +303,13 @@ export default function RKM() {
                   }}
                 >
                   <MenuItem value="All">All</MenuItem>
-                  <MenuItem value="VP Surya, Reza, Raghi">VP Surya, Reza, Raghi</MenuItem>
+                  <MenuItem value="Raghi">Raghi</MenuItem>
+                  <MenuItem value="Fero">Fero</MenuItem>
+                  <MenuItem value="Suci">Suci</MenuItem>
+                  <MenuItem value="Hendra">Hendra</MenuItem>
+                  <MenuItem value="Reza">Reza</MenuItem>
+                  <MenuItem value="VP Joni">VP Joni</MenuItem>
+                  <MenuItem value="VP Surya">VP Surya</MenuItem>
                 </TextField>
               </Box>
 
@@ -287,6 +320,8 @@ export default function RKM() {
                 <TextField
                   type="date"
                   size="small"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
                   fullWidth
                   sx={{
                     "& .MuiOutlinedInput-root": {
@@ -305,6 +340,8 @@ export default function RKM() {
                 </Typography>
                 <TextField
                   size="small"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search Program..."
                   fullWidth
                   sx={{
@@ -326,38 +363,14 @@ export default function RKM() {
           {/* ================= PROGRAM/TAHAPAN LIST TABLE ================= */}
           <Card sx={{ boxShadow: "0 2px 12px rgba(21,101,192,0.04)" }}>
             <CardContent sx={{ p: 3 }}>
-              {/* Header row: toggle */}
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, ml: 2, mr: 2 }}>
-                <Box sx={{ display: "flex", gap: 3, alignItems: "center" }}>
-                  <Typography
-                    onClick={() => setActiveTab("Program")}
-                    fontWeight={700}
-                    fontSize="1.05rem"
-                    sx={{
-                      cursor: "pointer",
-                      color: activeTab === "Program" ? "#0C4B7D" : "#727989",
-                      borderBottom: activeTab === "Program" ? "2px solid #0C4B7D" : "none",
-                      pb: 0.5,
-                      transition: "all 0.2s"
-                    }}
-                  >
-                    Program List
-                  </Typography>
-                  <Typography
-                    onClick={() => setActiveTab("Tahapan")}
-                    fontWeight={700}
-                    fontSize="1.05rem"
-                    sx={{
-                      cursor: "pointer",
-                      color: activeTab === "Tahapan" ? "#0C4B7D" : "#727989",
-                      borderBottom: activeTab === "Tahapan" ? "2px solid #0C4B7D" : "none",
-                      pb: 0.5,
-                      transition: "all 0.2s"
-                    }}
-                  >
-                    Tahapan List
-                  </Typography>
-                </Box>
+              <Box sx={{ mb: 2, ml: 2 }}>
+                <Typography
+                  fontWeight={700}
+                  fontSize="1.05rem"
+                  sx={{ color: "#0C4B7D", borderBottom: "2px solid #0C4B7D", pb: 0.5, display: "inline-block" }}
+                >
+                  Program List
+                </Typography>
               </Box>
 
               <TableContainer sx={{ px: 2, pb: 1 }}>
@@ -390,11 +403,11 @@ export default function RKM() {
                         },
                       }}
                     >
-                      <TableCell align="center" sx={{ fontWeight: 600, fontSize: "0.85rem", color: "#727989", py: 0.5, whiteSpace: "nowrap", width: activeTab === "Program" ? "22%" : "25%" }}>
-                        {activeTab === "Program" ? "Program/Project" : "Tahapan/Action"}
+                      <TableCell align="center" sx={{ fontWeight: 600, fontSize: "0.85rem", color: "#727989", py: 0.5, whiteSpace: "nowrap", width: "22%" }}>
+                        Program/Project
                       </TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 600, fontSize: "0.85rem", color: "#727989", py: 0.5, whiteSpace: "nowrap", width: activeTab === "Program" ? "14%" : "20%" }}>
-                        {activeTab === "Program" ? "PIC" : "Program"}
+                      <TableCell align="center" sx={{ fontWeight: 600, fontSize: "0.85rem", color: "#727989", py: 0.5, whiteSpace: "nowrap", width: "14%" }}>
+                        PIC
                       </TableCell>
                       <TableCell align="center" sx={{ fontWeight: 600, fontSize: "0.85rem", color: "#727989", py: 0.5, whiteSpace: "nowrap", width: "12%" }}>Status</TableCell>
                       <TableCell align="center" sx={{ fontWeight: 600, fontSize: "0.85rem", color: "#727989", py: 0.5, whiteSpace: "nowrap", width: "20%" }}>Progress Overall</TableCell>
@@ -411,17 +424,17 @@ export default function RKM() {
                           <CircularProgress size={30} />
                         </TableCell>
                       </TableRow>
-                    ) : (activeTab === "Program" ? programs : allStages).length === 0 ? (
+                    ) : programs.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={7} align="center" sx={{ py: 5 }}>
                           <Typography color="textSecondary">
-                            Tidak ada {activeTab === "Program" ? "program" : "tahapan"} ditemukan.
+                            Tidak ada program ditemukan.
                           </Typography>
                         </TableCell>
                       </TableRow>
-                    ) : (activeTab === "Program" ? programs : allStages).map((item: any, idx) => (
+                    ) : programs.map((item: any, idx) => (
                       <TableRow
-                        key={activeTab === "Program" ? item.id_program : item.id_stage}
+                        key={item.id_program}
                         className="anim-fadein-up"
                         style={{ animationDelay: `${0.08 + idx * 0.07}s` }}
                         sx={{
@@ -443,12 +456,10 @@ export default function RKM() {
                           </Typography>
                         </TableCell>
 
-                        {/* Secondary (PIC or Program Name) */}
+                        {/* Secondary (PIC) */}
                         <TableCell sx={{ py: 2 }}>
                           <Typography fontWeight={600} fontSize="0.85rem" sx={{ color: "#727989" }}>
-                            {activeTab === "Program" 
-                              ? (item.pic ? item.pic.split(" | ").filter((part: string) => part !== "").join(", ") : "-")
-                              : item.programName}
+                            {item.pic ? item.pic.split(" | ").filter((part: string) => part !== "").join(", ") : "-"}
                           </Typography>
                         </TableCell>
 
@@ -485,14 +496,14 @@ export default function RKM() {
                                 className="progress-fill"
                                 sx={{
                                   height: "100%",
-                                  width: `${activeTab === "Program" ? item.overall_progress : getStageProgress(item)}%`,
+                                  width: `${item.overall_progress}%`,
                                   bgcolor: "#2865FD",
                                   borderRadius: "2px 0 0 2px",
                                 }}
                               />
                             </Box>
                             <Typography fontSize="0.8rem" sx={{ color: "#2865FD", fontWeight: 600 }}>
-                              Actual {activeTab === "Program" ? item.overall_progress : getStageProgress(item)}%
+                              Actual {item.overall_progress}%
                             </Typography>
                           </Box>
                         </TableCell>
@@ -500,7 +511,7 @@ export default function RKM() {
                         {/* Alarm */}
                         <TableCell sx={{ py: 2 }} align="center">
                           <Chip
-                            label="ON TRACK"
+                            label={item.indicator ? item.indicator.toUpperCase() : "ON TRACK"}
                             sx={{
                               bgcolor: "#E6FFFA",
                               color: "#047481",
@@ -509,13 +520,13 @@ export default function RKM() {
                               borderRadius: "10px",
                               border: "1px solid #B2F5EA",
                             }}
-                          />8
+                          />
                         </TableCell>
 
                         {/* Deadline */}
                         <TableCell sx={{ py: 2 }} align="center">
                           <Typography fontWeight={600} fontSize="0.9rem" sx={{ color: "#727989" }}>
-                            {activeTab === "Program" ? item.plan_finish : item.plan_finish}
+                            {item.plan_finish}
                           </Typography>
                         </TableCell>
 
@@ -523,11 +534,11 @@ export default function RKM() {
                         <TableCell sx={{ py: 2 }} align="center">
                           <Button
                             size="small"
-                            onClick={() => navigate("/program-detail", { 
-                              state: { 
-                                from: "/rkm", 
-                                programId: activeTab === "Program" ? item.id_program : item.programId 
-                              } 
+                            onClick={() => navigate("/program-detail", {
+                              state: {
+                                from: "/rkm",
+                                programId: item.id_program
+                              }
                             })}
                             sx={{
                               textTransform: "none",

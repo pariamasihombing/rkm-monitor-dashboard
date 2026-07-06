@@ -18,6 +18,7 @@ $router->get('/', function () use ($router) {
 });
 
 $router->get('/api/dashboard', 'DashboardController@index');
+$router->get('/api/weekly-monitoring', 'WeeklyMonitoringController@index');
 
 $router->get('/api/programs', 'ProgramController@index');
 $router->get('/api/programs/{id}', 'ProgramController@show');

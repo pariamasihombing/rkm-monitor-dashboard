@@ -333,25 +333,6 @@ export default function SubtaskDetail() {
                           Subtask: {subtask.title}
                       </Typography>
                   </Box>
-                  <ActionBtn 
-                    label="Edit Subtask" 
-                    color="#F97316" 
-                    onClick={() => navigate("/pic-edit-subtask", {
-                        state: {
-                            from: fromRoute,
-                            returnTo: "/subtask-detail",
-                            programId,
-                            stageId,
-                            taskId: subtask.id,
-                            namaSubtask: subtask.title,
-                            deliverable: subtask.deliverable,
-                            status: subtask.statusName,
-                            planStart: subtask.start,
-                            planEnd: subtask.deadline,
-                            fileName: subtask.file ?? null,
-                        }
-                    })}
-                  />
                 </Box>
 
                 {/* Status Chips */}

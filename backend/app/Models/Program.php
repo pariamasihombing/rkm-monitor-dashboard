@@ -46,4 +46,28 @@ class Program extends Model
     {
         return $this->hasMany(Stage::class, 'id_program', 'id_program');
     }
+
+    /**
+     * Relasi ke tabel pivot program_pics (tiap baris adalah satu PIC).
+     * Bisa digunakan untuk whereHas('programPics.user', ...).
+     */
+    public function programPics()
+    {
+        return $this->hasMany(ProgramPic::class, 'id_program', 'id_program');
+    }
+
+    /**
+     * BelongsToMany shortcut: langsung ke model User lewat pivot program_pics.
+     */
+    public function pics()
+    {
+        return $this->belongsToMany(
+            User::class,
+            'program_pics',
+            'id_program',
+            'nip_user',
+            'id_program',
+            'nip'
+        );
+    }
 }

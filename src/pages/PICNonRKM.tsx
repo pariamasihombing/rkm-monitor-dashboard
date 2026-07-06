@@ -73,25 +73,35 @@ interface Program {
 export default function PICNonRKM() {
   const navigate = useNavigate();
   const [selectedStatus, setSelectedStatus] = useState("All");
+  const [selectedAlarm, setSelectedAlarm] = useState("All");
   const [selectedPIC, setSelectedPIC] = useState("All");
+  const [selectedDate, setSelectedDate] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [profileAnchor, setProfileAnchor] = useState<HTMLElement | null>(null);
   const [activeMenu, setActiveMenu] = useState("Non RKM");
   const [activeTab, setActiveTab] = useState("Program");
-  
+
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchPrograms();
-  }, []);
+  }, [selectedStatus, selectedAlarm, selectedPIC, selectedDate, searchQuery]);
 
   const fetchPrograms = async () => {
     setLoading(true);
     try {
-      const response = await fetch("http://localhost:8000/api/programs");
+      const params = new URLSearchParams();
+      if (selectedStatus !== "All") params.append("status", selectedStatus);
+      if (selectedAlarm !== "All") params.append("alarm", selectedAlarm);
+      if (selectedPIC !== "All") params.append("pic", selectedPIC);
+      if (selectedDate) params.append("date", selectedDate);
+      if (searchQuery) params.append("search", searchQuery);
+
+      const response = await fetch(`http://localhost:8000/api/programs?${params.toString()}`);
       const data = await response.json();
-      // Filter for Non RKM programs
-      setPrograms(data.filter((p: Program) => p.type === "Non RKM"));
+      const dataArray = Array.isArray(data) ? data : (data.data || []);
+      setPrograms(dataArray.filter((p: Program) => p.type === "Non RKM"));
     } catch (error) {
       console.error("Error fetching programs:", error);
     } finally {
@@ -262,94 +272,88 @@ export default function PICNonRKM() {
         <Box sx={{ p: 4, maxWidth: 1400, mx: "auto", pb: 15 }}>
           {/* FILTER */}
           <Card sx={{ mb: 3, boxShadow: "0 2px 12px rgba(21,101,192,0.04)", bgcolor: "#FFFFFF" }}>
-            <CardContent sx={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 5, pt: 3, pb: 4, px: 4 }}>
+            <CardContent sx={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 3, pt: 3, pb: 4, px: 4 }}>
+              {/* Status */}
               <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
                 <Typography variant="caption" sx={{ display: "block", mb: 0.5, fontWeight: 600, fontSize: "0.85rem", color: "#727989" }}>
                   Status
                 </Typography>
                 <TextField
-                  select
-                  size="small"
-                  value={selectedStatus}
+                  select size="small" value={selectedStatus}
                   onChange={(e) => setSelectedStatus(e.target.value)}
                   fullWidth
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      borderRadius: "5px",
-                      "& fieldset": { borderColor: "rgba(83, 83, 83, 0.21)" },
-                      "&:hover fieldset": { borderColor: "rgba(83, 83, 83, 0.21)" },
-                    },
-                    "& .MuiOutlinedInput-input": { color: "#000000" },
-                  }}
+                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "5px", "& fieldset": { borderColor: "rgba(83,83,83,0.21)" }, "&:hover fieldset": { borderColor: "rgba(83,83,83,0.21)" } }, "& .MuiOutlinedInput-input": { color: "#000" } }}
                 >
-                  {statuses.map((s) => (
-                    <MenuItem key={s} value={s}>{s}</MenuItem>
-                  ))}
+                  {statuses.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
                 </TextField>
               </Box>
 
+              {/* Alarm */}
+              <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                <Typography variant="caption" sx={{ display: "block", mb: 0.5, fontWeight: 600, fontSize: "0.85rem", color: "#727989" }}>
+                  Alarm
+                </Typography>
+                <TextField
+                  select size="small" value={selectedAlarm}
+                  onChange={(e) => setSelectedAlarm(e.target.value)}
+                  fullWidth
+                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "5px", "& fieldset": { borderColor: "rgba(83,83,83,0.21)" }, "&:hover fieldset": { borderColor: "rgba(83,83,83,0.21)" } }, "& .MuiOutlinedInput-input": { color: "#000" } }}
+                >
+                  <MenuItem value="All">All</MenuItem>
+                  <MenuItem value="On Track">On Track</MenuItem>
+                  <MenuItem value="Behind Expected">Behind Expected</MenuItem>
+                  <MenuItem value="Due Soon">Due Soon</MenuItem>
+                  <MenuItem value="Overdue">Overdue</MenuItem>
+                </TextField>
+              </Box>
+
+              {/* PIC */}
               <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
                 <Typography variant="caption" sx={{ display: "block", mb: 0.5, fontWeight: 600, fontSize: "0.85rem", color: "#727989" }}>
                   PIC
                 </Typography>
                 <TextField
-                  select
-                  size="small"
-                  value={selectedPIC}
+                  select size="small" value={selectedPIC}
                   onChange={(e) => setSelectedPIC(e.target.value)}
                   fullWidth
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      borderRadius: "5px",
-                      "& fieldset": { borderColor: "rgba(83, 83, 83, 0.21)" },
-                      "&:hover fieldset": { borderColor: "rgba(83, 83, 83, 0.21)" },
-                    },
-                    "& .MuiOutlinedInput-input": { color: "#000000" },
-                  }}
+                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "5px", "& fieldset": { borderColor: "rgba(83,83,83,0.21)" }, "&:hover fieldset": { borderColor: "rgba(83,83,83,0.21)" } }, "& .MuiOutlinedInput-input": { color: "#000" } }}
                 >
                   <MenuItem value="All">All</MenuItem>
-                  <MenuItem value="VP Surya, Reza, Raghi">VP Surya, Reza, Raghi</MenuItem>
+                  <MenuItem value="Raghi">Raghi</MenuItem>
+                  <MenuItem value="Fero">Fero</MenuItem>
+                  <MenuItem value="Suci">Suci</MenuItem>
+                  <MenuItem value="Hendra">Hendra</MenuItem>
+                  <MenuItem value="Reza">Reza</MenuItem>
+                  <MenuItem value="VP Joni">VP Joni</MenuItem>
+                  <MenuItem value="VP Surya">VP Surya</MenuItem>
                 </TextField>
               </Box>
 
+              {/* Date Range */}
               <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
                 <Typography variant="caption" sx={{ display: "block", mb: 0.5, fontWeight: 600, fontSize: "0.85rem", color: "#727989" }}>
                   Date Range
                 </Typography>
                 <TextField
-                  type="date"
-                  size="small"
+                  type="date" size="small" value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
                   fullWidth
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      borderRadius: "5px",
-                      "& fieldset": { borderColor: "rgba(83, 83, 83, 0.21)" },
-                      "&:hover fieldset": { borderColor: "rgba(83, 83, 83, 0.21)" },
-                    },
-                    "& .MuiOutlinedInput-input": { color: "#B0BBD5" },
-                  }}
+                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "5px", "& fieldset": { borderColor: "rgba(83,83,83,0.21)" }, "&:hover fieldset": { borderColor: "rgba(83,83,83,0.21)" } }, "& .MuiOutlinedInput-input": { color: "#B0BBD5" } }}
                 />
               </Box>
 
+              {/* Search */}
               <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
                 <Typography variant="caption" sx={{ display: "block", mb: 0.5, fontWeight: 600, fontSize: "0.85rem", color: "#727989" }}>
                   Search
                 </Typography>
                 <TextField
-                  size="small"
+                  size="small" value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search Program..."
                   fullWidth
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      borderRadius: "5px",
-                      "& fieldset": { borderColor: "rgba(83, 83, 83, 0.21)" },
-                      "&:hover fieldset": { borderColor: "rgba(83, 83, 83, 0.21)" },
-                    },
-                    "& .MuiOutlinedInput-input": { color: "#B0BBD5" },
-                  }}
-                  InputProps={{
-                    endAdornment: <SearchIcon sx={{ fontSize: 18, color: "#9CA3AF" }} />,
-                  }}
+                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "5px", "& fieldset": { borderColor: "rgba(83,83,83,0.21)" }, "&:hover fieldset": { borderColor: "rgba(83,83,83,0.21)" } }, "& .MuiOutlinedInput-input": { color: "#B0BBD5" } }}
+                  InputProps={{ endAdornment: <SearchIcon sx={{ fontSize: 18, color: "#9CA3AF" }} /> }}
                 />
               </Box>
             </CardContent>

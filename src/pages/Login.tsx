@@ -16,7 +16,7 @@ export default function Login() {
   // Dummy credentials — nanti diganti API backend
   const USERS = [
     { nip: "admin001", password: "admin123", role: "admin" },
-    { nip: "pic001",   password: "pic123",   role: "pic" },
+    { nip: "pic001", password: "pic123", role: "pic" },
   ];
 
   const handleLogin = () => {
@@ -46,33 +46,33 @@ export default function Login() {
       }}
     >
 
-{/* Logo top */}
-          <Box
-            sx={{
-              display: "flex",
-              position: "absolute",
-              justifyContent: "center",
-              alignItems: "center",
-              top: 24,
-              left: "50%",
-              transform: "translateX(-50%)",
-              zIndex: 5,
-              gap: 4,
-            }}
-          >
-            <Box
-              component="img"
-              src={logoDanantara}
-              alt="Danantara Indonesia"
-              sx={{ height: 38, width: "auto" }}
-            />
-            <Box
-              component="img"
-              src={logoPelindo}
-              alt="Pelindo"
-              sx={{ height: 60, width: "auto" }}
-            />
-          </Box>
+      {/* Logo top */}
+      <Box
+        sx={{
+          display: "flex",
+          position: "absolute",
+          justifyContent: "center",
+          alignItems: "center",
+          top: 24,
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 5,
+          gap: 4,
+        }}
+      >
+        <Box
+          component="img"
+          src={logoDanantara}
+          alt="Danantara Indonesia"
+          sx={{ height: 38, width: "auto" }}
+        />
+        <Box
+          component="img"
+          src={logoPelindo}
+          alt="Pelindo"
+          sx={{ height: 60, width: "auto" }}
+        />
+      </Box>
 
       {/* Konten */}
       <Box
@@ -115,7 +115,7 @@ export default function Login() {
 
               <Box sx={{ display: "grid", gap: 2.2 }}>
                 <TextField
-                  label={<span style={{fontWeight:600, fontSize:14, color:"#727989"}}>NIP</span>}
+                  label={<span style={{ fontWeight: 600, fontSize: 14, color: "#727989" }}>NIP</span>}
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleLogin()}
@@ -123,14 +123,14 @@ export default function Login() {
                   variant="outlined"
                   size="small"
 
-                InputProps={{
-                  sx: {
-                        "& .MuiInputBase-input": {
-                          paddingY: "9px",   // coba 12px / 14px / 16px
-                          paddingX: "16px",
-                        },
+                  InputProps={{
+                    sx: {
+                      "& .MuiInputBase-input": {
+                        paddingY: "9px",   // coba 12px / 14px / 16px
+                        paddingX: "16px",
                       },
-                    }}
+                    },
+                  }}
                   sx={{
                     background: "#FFFFFF",
                     borderRadius: 2,
@@ -139,7 +139,7 @@ export default function Login() {
                   }}
                 />
                 <TextField
-                  label={<span style={{fontWeight:600, fontSize:14, color:"#727989"}}>Password</span>}
+                  label={<span style={{ fontWeight: 600, fontSize: 14, color: "#727989" }}>Password</span>}
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -148,13 +148,13 @@ export default function Login() {
                   variant="outlined"
                   size="small"
                   InputProps={{
-                  sx: {
-                        "& .MuiInputBase-input": {
-                          paddingY: "9px",   // coba 12px / 14px / 16px
-                          paddingX: "16px",
-                        },
+                    sx: {
+                      "& .MuiInputBase-input": {
+                        paddingY: "9px",   // coba 12px / 14px / 16px
+                        paddingX: "16px",
                       },
-                    }}
+                    },
+                  }}
                   sx={{
                     background: "#FFFFFF",
                     borderRadius: 2,
