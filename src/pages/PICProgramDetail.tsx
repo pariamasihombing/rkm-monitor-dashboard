@@ -28,7 +28,7 @@ import ProfileMenu from "../components/ProfileMenu";
 import logoDanantara from "../assets/logo-danantara.png";
 import logoPelindo from "../assets/logo-pelindo.png";
 import batikOrnament from "../assets/batik 1.png";
-import { programById, rkmPrograms, type TaskStatus } from "../data/programDetailMock";
+import { programById, rkmPrograms } from "../data/programDetailMock";
 
 /* ================= STATUS CHIP STYLES ================= */
 
@@ -43,6 +43,22 @@ const getStatusStyle = (status: string) => {
       return { bgcolor: "#F8FAFC", color: "#64748B", border: "1px solid #CBD5E1" };
     case "HOLD":
       return { bgcolor: "#FEF2F2", color: "#DC2626", border: "1px solid #FECACA" };
+    default:
+      return { bgcolor: "#F8FAFC", color: "#64748B", border: "1px solid #CBD5E1" };
+  }
+};
+
+const getIndicatorStyle = (indicator: string) => {
+  switch ((indicator || "").toUpperCase()) {
+    case "OVERDUE":
+      return { bgcolor: "#FFF5F5", color: "#E9004A", border: "1px solid #FECDD3" };
+    case "DUE SOON":
+      return { bgcolor: "#E6FFFA", color: "#047481", border: "1px solid #B2F5EA" };
+    case "BEHIND EXPECTED":
+      return { bgcolor: "#FFFBEB", color: "#D97706", border: "1px solid #FDE68A" };
+    case "COMPLETED":
+    case "ON TRACK":
+      return { bgcolor: "#ECFDF5", color: "#059669", border: "1px solid #A7F3D0" };
     default:
       return { bgcolor: "#F8FAFC", color: "#64748B", border: "1px solid #CBD5E1" };
   }
@@ -137,10 +153,11 @@ export default function PICProgramDetail() {
           picSupervisor: picParts[2] || "-",
           start: data.plan_start,
           deadline: data.plan_finish,
-          actual: data.overall_progress || 0,
-          expected: 50, // Mocked for now
-          gap: (data.overall_progress || 0) - 50,
-          overdue: 0, // Mocked for now
+          actual: data.actual_progress ?? data.overall_progress ?? 0,
+          expected: data.expected_progress ?? 0,
+          gap: data.gap ?? ((data.actual_progress ?? data.overall_progress ?? 0) - (data.expected_progress ?? 0)),
+          indicator: data.indicator || "On Track",
+          overdue: data.indicator === "Overdue" ? 1 : 0,
           sections: data.stages?.map((s: any) => ({
             id: s.id_stage,
             title: s.name,
@@ -159,10 +176,11 @@ export default function PICProgramDetail() {
                 dateRange: `${t.plan_start} - ${t.plan_finish}`,
                 status: t.status?.name || "Not Started",
                 file: t.file,
-                overdue: false,
-                actual,
-                expected,
-                gap: actual - expected,
+                overdue: t.indicator === "Overdue",
+                actual: t.actual_progress ?? actual,
+                expected: t.expected_progress ?? expected,
+                gap: t.gap ?? ((t.actual_progress ?? actual) - (t.expected_progress ?? expected)),
+                indicator: t.indicator || "On Track",
                 overdueCount: 0,
               };
             }) || []
@@ -257,6 +275,7 @@ export default function PICProgramDetail() {
   const gap        = program.gap || 0;
   const gapColor   = gap < 0 ? "#E9004A" : "#009E6D";
   const gapDisplay = gap < 0 ? `${gap}%` : `+${gap}%`;
+  const indicator = program.indicator || (gap < 0 ? "Behind Expected" : "On Track");
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "#F7F9FB" }}>
@@ -446,20 +465,17 @@ export default function PICProgramDetail() {
                   size="small"
                   sx={{ bgcolor: "#EFF6FF", color: "#2563EB", fontWeight: 700, fontSize: "0.72rem", border: "1px solid #BFDBFE", borderRadius: "6px", height: 24 }}
                 />
-                {gap < 0 && (
-                  <Chip
-                    label="BEHIND EXPECTED"
-                    size="small"
-                    sx={{ bgcolor: "#FFFBEB", color: "#D97706", fontWeight: 700, fontSize: "0.72rem", border: "1px solid #FDE68A", borderRadius: "6px", height: 24 }}
-                  />
-                )}
-                {gap >= 0 && (
-                   <Chip
-                    label="ON TRACK"
-                    size="small"
-                    sx={{ bgcolor: "#ECFDF5", color: "#059669", fontWeight: 700, fontSize: "0.72rem", border: "1px solid #A7F3D0", borderRadius: "6px", height: 24 }}
-                  />
-                )}
+                <Chip
+                  label={indicator.toUpperCase()}
+                  size="small"
+                  sx={{
+                    ...getIndicatorStyle(indicator),
+                    fontWeight: 700,
+                    fontSize: "0.72rem",
+                    borderRadius: "6px",
+                    height: 24,
+                  }}
+                />
               </Box>
 
               {/* Meta info */}

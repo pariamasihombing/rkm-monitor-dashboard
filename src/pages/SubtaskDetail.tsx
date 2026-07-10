@@ -16,7 +16,9 @@ import {
   CalendarToday as CalendarIcon,
   InsertDriveFile as FileIcon,
   Warning as WarningIcon,
+  ManageAccounts as ManageAccountsIcon,
 } from "@mui/icons-material";
+import { canManage } from "../utils/rbac";
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import ProfileMenu from "../components/ProfileMenu";
@@ -191,26 +193,32 @@ export default function SubtaskDetail() {
         </Box>
 
         <Box sx={{ px: -2 }}>
-          {[
-            { icon: DashboardIcon,  label: "Dashboard" },
-            { icon: Assessment,     label: "RKM / Program" },
-            { icon: ContentPaste,   label: "Non RKM" },
-            { icon: TrendingUp,     label: "Weekly Monitoring" },
-          ].map((item) => (
-            <Button
-              key={item.label}
-              startIcon={<item.icon sx={{ fontSize: "1.4rem" }} />}
-              onClick={() => {
-                setActiveMenu(item.label);
-                const routeMap: Record<string, string> = {
-                  Dashboard: "/dashboard",
-                  "RKM / Program": "/rkm",
-                  "Non RKM": "/non-rkm",
-                  "Weekly Monitoring": "/weekly-monitoring",
-                };
-                const route = routeMap[item.label];
-                if (route) navigate(route);
-              }}
+          {(() => {
+            const menus = [
+              { icon: DashboardIcon, label: "Dashboard" },
+              { icon: Assessment, label: "RKM / Program" },
+              { icon: ContentPaste, label: "Non RKM" },
+              { icon: TrendingUp, label: "Weekly Monitoring" },
+            ];
+            if (canManage()) {
+              menus.push({ icon: ManageAccountsIcon, label: "Kelola Akun" });
+            }
+            return menus.map((item) => (
+              <Button
+                key={item.label}
+                startIcon={<item.icon sx={{ fontSize: "1.4rem" }} />}
+                onClick={() => {
+                  setActiveMenu(item.label);
+                  const routeMap: Record<string, string> = {
+                    "Dashboard": "/dashboard",
+                    "RKM / Program": "/rkm",
+                    "Non RKM": "/non-rkm",
+                    "Weekly Monitoring": "/weekly-monitoring",
+                    "Kelola Akun": "/manage-users"
+                  };
+                  const route = routeMap[item.label];
+                  if (route) navigate(route);
+                }}
               sx={{
                 color: "white",
                 justifyContent: "flex-start",
@@ -238,7 +246,7 @@ export default function SubtaskDetail() {
             >
               {item.label}
             </Button>
-          ))}
+          ))})()}
         </Box>
 
         <Box sx={{ marginTop: "auto", marginLeft: "-24px", width: "111%", height: "auto", display: "flex", flexDirection: "column", justifyContent: "flex-end", overflow: "hidden" }}>

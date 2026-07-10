@@ -21,6 +21,7 @@ import {
   ContentPaste,
   TrendingUp,
   Search as SearchIcon,
+  ManageAccounts as ManageAccountsIcon,
 } from "@mui/icons-material";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -29,6 +30,7 @@ import { statuses } from "../data/dashboardMock";
 import logoDanantara from "../assets/logo-danantara.png";
 import logoPelindo from "../assets/logo-pelindo.png";
 import batikOrnament from "../assets/batik 1.png";
+import { canManage } from "../utils/rbac";
 
 /* ================= TYPES ================= */
 
@@ -80,6 +82,17 @@ export default function NonRKM() {
   const [profileAnchor, setProfileAnchor] = useState<HTMLElement | null>(null);
   const [activeMenu, setActiveMenu] = useState("Non RKM");
 
+  const menuItems = [
+    { icon: DashboardIcon, label: "Dashboard", route: "/dashboard" },
+    { icon: Assessment, label: "RKM / Program", route: "/rkm" },
+    { icon: ContentPaste, label: "Non RKM", route: "/non-rkm" },
+    { icon: TrendingUp, label: "Weekly Monitoring", route: "/weekly-monitoring" },
+  ];
+
+  if (canManage()) {
+    menuItems.push({ icon: ManageAccountsIcon, label: "Kelola Akun", route: "/manage-users" });
+  }
+
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -99,7 +112,7 @@ export default function NonRKM() {
 
       const response = await fetch(`http://localhost:8000/api/programs?${params.toString()}`);
       const data = await response.json();
-      
+
       const dataArray = Array.isArray(data) ? data : (data.data || []);
       setPrograms(dataArray.filter((p: Program) => p.type === "Non RKM"));
     } catch (error) {
@@ -108,7 +121,37 @@ export default function NonRKM() {
       setLoading(false);
     }
   };
+  const handleDelete = async (id: number) => {
+    if (window.confirm("Apakah Anda yakin ingin menghapus program ini?")) {
+      try {
+        const response = await fetch(`http://localhost:8000/api/programs/${id}`, {
+          method: "DELETE",
+        });
+        if (response.ok) {
+          alert("Program berhasil dihapus!");
+          fetchPrograms();
+        }
+      } catch (error) {
+        console.error("Error deleting program:", error);
+      }
+    }
+  };
 
+  const handleDeleteStage = async (id: number) => {
+    if (window.confirm("Apakah Anda yakin ingin menghapus tahapan ini?")) {
+      try {
+        const response = await fetch(`http://localhost:8000/api/stages/${id}`, {
+          method: "DELETE",
+        });
+        if (response.ok) {
+          alert("Tahapan berhasil dihapus!");
+          fetchPrograms();
+        }
+      } catch (error) {
+        console.error("Error deleting stage:", error);
+      }
+    }
+  };
 
 
   return (
@@ -138,25 +181,13 @@ export default function NonRKM() {
         </Box>
 
         <Box sx={{ px: -2 }}>
-          {[
-            { icon: DashboardIcon, label: "Dashboard" },
-            { icon: Assessment, label: "RKM / Program" },
-            { icon: ContentPaste, label: "Non RKM" },
-            { icon: TrendingUp, label: "Weekly Monitoring" },
-          ].map((item) => (
+          {menuItems.map((item) => (
             <Button
               key={item.label}
               startIcon={<item.icon sx={{ fontSize: "1.4rem" }} />}
               onClick={() => {
                 setActiveMenu(item.label);
-                const routeMap: Record<string, string> = {
-                  "Dashboard": "/dashboard",
-                  "RKM / Program": "/rkm",
-                  "Non RKM": "/non-rkm",
-                  "Weekly Monitoring": "/weekly-monitoring",
-                };
-                const route = routeMap[item.label];
-                if (route) navigate(route);
+                navigate(item.route);
               }}
               sx={{
                 color: "white",
@@ -363,14 +394,34 @@ export default function NonRKM() {
           {/* ================= PROGRAM/TAHAPAN LIST TABLE ================= */}
           <Card sx={{ boxShadow: "0 2px 12px rgba(21,101,192,0.04)" }}>
             <CardContent sx={{ p: 3 }}>
-              <Box sx={{ mb: 2, ml: 2 }}>
-                <Typography
-                  fontWeight={700}
-                  fontSize="1.05rem"
-                  sx={{ color: "#0C4B7D", borderBottom: "2px solid #0C4B7D", pb: 0.5, display: "inline-block" }}
-                >
-                  Program List
-                </Typography>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, ml: 2, mr: 2 }}>
+                <Box sx={{ display: "flex", gap: 3, alignItems: "center" }}>
+                  <Typography
+                    fontWeight={700}
+                    fontSize="1.05rem"
+                    sx={{ color: "#0C4B7D", borderBottom: "2px solid #0C4B7D", pb: 0.5, display: "inline-block" }}
+                  >
+                    Program List
+                  </Typography>
+                </Box>
+                {canManage() && (
+                  <Button
+                    onClick={() => navigate("/pic-tambah-program")}
+                    sx={{
+                      color: "#1F77AE",
+                      fontWeight: 700,
+                      fontSize: "0.85rem",
+                      textTransform: "none",
+                      p: 0,
+                      minWidth: "auto",
+                      "&:hover": {
+                        bgcolor: "transparent",
+                      },
+                    }}
+                  >
+                    + Tambah Program
+                  </Button>
+                )}
               </Box>
 
               <TableContainer sx={{ px: 2, pb: 1 }}>
@@ -530,28 +581,79 @@ export default function NonRKM() {
                           </Typography>
                         </TableCell>
 
-                        {/* Action — View */}
+                        {/* Action — View | Edit | Hapus */}
                         <TableCell sx={{ py: 2 }} align="center">
-                          <Button
-                            size="small"
-                            onClick={() => navigate("/program-detail", {
-                              state: {
-                                from: "/non-rkm",
-                                programId: item.id_program
-                              }
-                            })}
-                            sx={{
-                              textTransform: "none",
-                              fontWeight: 700,
-                              color: "#2196F3",
-                              fontSize: "0.85rem",
-                              p: 0,
-                              minWidth: "auto",
-                              "&:hover": { bgcolor: "transparent" },
-                            }}
-                          >
-                            View
-                          </Button>
+                          <Box sx={{ display: "flex", gap: 1, alignItems: "center", justifyContent: "center" }}>
+                            <Button
+                              size="small"
+                              onClick={() => navigate("/program-detail", {
+                                state: {
+                                  from: "/non-rkm",
+                                  programId: item.id_program
+                                }
+                              })}
+                              sx={{
+                                textTransform: "none",
+                                fontWeight: 700,
+                                color: "#2196F3",
+                                fontSize: "0.85rem",
+                                p: 0,
+                                minWidth: "auto",
+                                "&:hover": { bgcolor: "transparent" },
+                              }}
+                            >
+                              View
+                            </Button>
+                            {canManage() && (
+                              <>
+                                <Typography sx={{ fontSize: "0.8rem", color: "#DBDBDB" }}>|</Typography>
+                                <Button
+                                  size="small"
+                                  onClick={() => {
+                                    navigate("/pic-edit-program", {
+                                      state: {
+                                        from: "/non-rkm",
+                                        programId: item.id_program,
+                                        namaProgram: item.name,
+                                        tipeProgram: item.type,
+                                        pic: item.pic,
+                                        status: item.status?.name,
+                                        planStart: item.plan_start,
+                                        planFinish: item.plan_finish,
+                                      },
+                                    });
+                                  }}
+                                  sx={{
+                                    textTransform: "none",
+                                    fontWeight: 700,
+                                    color: "#F97316",
+                                    fontSize: "0.85rem",
+                                    p: 0,
+                                    minWidth: "auto",
+                                    "&:hover": { bgcolor: "transparent" },
+                                  }}
+                                >
+                                  Edit
+                                </Button>
+                                <Typography sx={{ fontSize: "0.8rem", color: "#DBDBDB" }}>|</Typography>
+                                <Button
+                                  size="small"
+                                  onClick={() => handleDelete(item.id_program)}
+                                  sx={{
+                                    textTransform: "none",
+                                    fontWeight: 700,
+                                    color: "#E9004A",
+                                    fontSize: "0.85rem",
+                                    p: 0,
+                                    minWidth: "auto",
+                                    "&:hover": { bgcolor: "transparent" },
+                                  }}
+                                >
+                                  Hapus
+                                </Button>
+                              </>
+                            )}
+                          </Box>
                         </TableCell>
                       </TableRow>
                     ))}

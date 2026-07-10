@@ -321,7 +321,7 @@ class DashboardController extends Controller
         }
     }
 
-    private function getAlerts($programs, \Carbon\Carbon $today = null)
+    private function getAlerts($programs, ?\Carbon\Carbon $today = null)
     {
         $today  = $today ?? \Carbon\Carbon::today();
         $alerts = [];

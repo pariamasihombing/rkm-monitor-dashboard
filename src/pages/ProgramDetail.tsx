@@ -20,6 +20,7 @@ import {
   KeyboardArrowRight as ArrowRightIcon,
   ArrowForward as ArrowForwardIcon,
   Warning as WarningIcon,
+  ManageAccounts as ManageAccountsIcon,
 } from "@mui/icons-material";
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -28,6 +29,7 @@ import logoDanantara from "../assets/logo-danantara.png";
 import logoPelindo from "../assets/logo-pelindo.png";
 import batikOrnament from "../assets/batik 1.png";
 import { programById, rkmPrograms, type TaskStatus } from "../data/programDetailMock";
+import { canManage } from "../utils/rbac";
 
 
 
@@ -62,6 +64,42 @@ const getStatusStyle = (status: TaskStatus) => {
   }
 };
 
+const getIndicatorStyle = (indicator: string) => {
+  switch ((indicator || "").toUpperCase()) {
+    case "OVERDUE":
+      return {
+        bgcolor: "#FFF5F5",
+        color: "#E9004A",
+        border: "1px solid #FECDD3",
+      };
+    case "DUE SOON":
+      return {
+        bgcolor: "#E6FFFA",
+        color: "#047481",
+        border: "1px solid #B2F5EA",
+      };
+    case "BEHIND EXPECTED":
+      return {
+        bgcolor: "#FFFBEB",
+        color: "#D97706",
+        border: "1px solid #FDE68A",
+      };
+    case "COMPLETED":
+    case "ON TRACK":
+      return {
+        bgcolor: "#ECFDF5",
+        color: "#059669",
+        border: "1px solid #A7F3D0",
+      };
+    default:
+      return {
+        bgcolor: "#F8FAFC",
+        color: "#64748B",
+        border: "1px solid #CBD5E1",
+      };
+  }
+};
+
 /* ================= SEPARATOR ================= */
 
 const Pipe = () => (
@@ -82,8 +120,8 @@ const ActionBtn = ({
   <Button
     size="small"
     onClick={(e) => {
-        e.stopPropagation();
-        onClick?.(e);
+      e.stopPropagation();
+      onClick?.(e);
     }}
     sx={{
       textTransform: "none",
@@ -135,9 +173,9 @@ export default function ProgramDetail() {
       } else if (programId) {
         const response = await fetch(`http://localhost:8000/api/programs/${programId}`);
         const data = await response.json();
-        
+
         const picParts = (data.pic || "").split("|").map((s: string) => s.trim());
-        
+
         const normalized = {
           ...data,
           id: data.id_program,
@@ -148,10 +186,11 @@ export default function ProgramDetail() {
           picSupervisor: picParts[2] || "-",
           start: data.plan_start,
           deadline: data.plan_finish,
-          actual: data.overall_progress || 0,
-          expected: 50,
-          gap: (data.overall_progress || 0) - 50,
-          overdue: 0,
+          actual: data.actual_progress ?? data.overall_progress ?? 0,
+          expected: data.expected_progress ?? 0,
+          gap: data.gap ?? ((data.actual_progress ?? data.overall_progress ?? 0) - (data.expected_progress ?? 0)),
+          indicator: data.indicator || "On Track",
+          overdue: data.indicator === "Overdue" ? 1 : 0,
           sections: data.stages?.map((s: any) => ({
             id: s.id_stage,
             title: s.name,
@@ -162,11 +201,15 @@ export default function ProgramDetail() {
               deliverable: t.deliverable,
               dateRange: `${t.plan_start} - ${t.plan_finish}`,
               status: (t.status?.name || "NOT STARTED").toUpperCase(),
-              overdue: false,
+              overdue: t.indicator === "Overdue",
+              actual: t.actual_progress ?? 0,
+              expected: t.expected_progress ?? 0,
+              gap: t.gap ?? ((t.actual_progress ?? 0) - (t.expected_progress ?? 0)),
+              indicator: t.indicator || "On Track",
             })) || []
           })) || []
         };
-        
+
         setProgram(normalized);
         if (normalized.sections && normalized.sections.length > 0) {
           setOpenSections({ [normalized.sections[0].id]: true });
@@ -187,6 +230,42 @@ export default function ProgramDetail() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteSection = async (sectionId: number) => {
+    if (!window.confirm("Apakah Anda yakin ingin menghapus tahapan ini? Semua subtask di dalamnya juga akan terhapus.")) return;
+
+    try {
+      const response = await fetch(`http://localhost:8000/api/stages/${sectionId}`, {
+        method: "DELETE",
+      });
+      if (response.ok) {
+        fetchProgramDetail();
+      } else {
+        alert("Gagal menghapus tahapan.");
+      }
+    } catch (error) {
+      console.error("Error deleting stage:", error);
+      alert("Terjadi kesalahan koneksi.");
+    }
+  };
+
+  const handleDeleteTask = async (taskId: number) => {
+    if (!window.confirm("Apakah Anda yakin ingin menghapus subtask ini?")) return;
+
+    try {
+      const response = await fetch(`http://localhost:8000/api/subtasks/${taskId}`, {
+        method: "DELETE",
+      });
+      if (response.ok) {
+        fetchProgramDetail();
+      } else {
+        alert("Gagal menghapus subtask.");
+      }
+    } catch (error) {
+      console.error("Error deleting subtask:", error);
+      alert("Terjadi kesalahan koneksi.");
     }
   };
 
@@ -213,6 +292,7 @@ export default function ProgramDetail() {
   const gap = program.gap || 0;
   const gapColor = gap < 0 ? "#E9004A" : "#009E6D";
   const gapDisplay = gap < 0 ? `${gap}%` : `+${gap}%`;
+  const indicator = program.indicator || (gap < 0 ? "Behind Expected" : "On Track");
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "#F7F9FB" }}>
@@ -245,54 +325,61 @@ export default function ProgramDetail() {
         </Box>
 
         <Box sx={{ px: -2 }}>
-          {[
-            { icon: DashboardIcon, label: "Dashboard" },
-            { icon: Assessment, label: "RKM / Program" },
-            { icon: ContentPaste, label: "Non RKM" },
-            { icon: TrendingUp, label: "Weekly Monitoring" },
-          ].map((item) => (
-            <Button
-              key={item.label}
-              startIcon={<item.icon sx={{ fontSize: "1.4rem" }} />}
-              onClick={() => {
-                setActiveMenu(item.label);
-                const routeMap: Record<string, string> = {
-                  Dashboard: "/dashboard",
-                  "RKM / Program": "/rkm",
-                  "Non RKM": "/non-rkm",
-                  "Weekly Monitoring": "/weekly-monitoring",
-                };
-                const route = routeMap[item.label];
-                if (route) navigate(route);
-              }}
-              sx={{
-                color: "white",
-                justifyContent: "flex-start",
-                mb: 1,
-                px: 2,
-                py: 1,
-                borderRadius: 3,
-                fontSize: "0.9rem",
-                whiteSpace: "nowrap",
-                border: "2px solid transparent",
-                fontWeight: activeMenu === item.label ? 900 : 600,
-                width: "calc(100% - 10px)",
-                ml: -1.5,
-                ...(activeMenu === item.label && {
-                  bgcolor: "rgba(255,255,255,0.25)",
-                  boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
-                  border: "2px solid rgba(255,255,255,0.4)",
-                  backdropFilter: "blur(10px)",
-                  "&:hover": { bgcolor: "rgba(255,255,255,0.3)" },
-                }),
-                ...!(activeMenu === item.label) && {
-                  "&:hover": { bgcolor: "rgba(255,255,255,0.1)" },
-                },
-              }}
-            >
-              {item.label}
-            </Button>
-          ))}
+          {(() => {
+            const menus = [
+              { icon: DashboardIcon, label: "Dashboard" },
+              { icon: Assessment, label: "RKM / Program" },
+              { icon: ContentPaste, label: "Non RKM" },
+              { icon: TrendingUp, label: "Weekly Monitoring" },
+            ];
+            if (canManage()) {
+              menus.push({ icon: ManageAccountsIcon, label: "Kelola Akun" });
+            }
+            return menus.map((item) => (
+              <Button
+                key={item.label}
+                startIcon={<item.icon sx={{ fontSize: "1.4rem" }} />}
+                onClick={() => {
+                  setActiveMenu(item.label);
+                  const routeMap: Record<string, string> = {
+                    Dashboard: "/dashboard",
+                    "RKM / Program": "/rkm",
+                    "Non RKM": "/non-rkm",
+                    "Weekly Monitoring": "/weekly-monitoring",
+                    "Kelola Akun": "/manage-users",
+                  };
+                  const route = routeMap[item.label];
+                  if (route) navigate(route);
+                }}
+                sx={{
+                  color: "white",
+                  justifyContent: "flex-start",
+                  mb: 1,
+                  px: 2,
+                  py: 1,
+                  borderRadius: 3,
+                  fontSize: "0.9rem",
+                  whiteSpace: "nowrap",
+                  border: "2px solid transparent",
+                  fontWeight: activeMenu === item.label ? 900 : 600,
+                  width: "calc(100% - 10px)",
+                  ml: -1.5,
+                  ...(activeMenu === item.label && {
+                    bgcolor: "rgba(255,255,255,0.25)",
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
+                    border: "2px solid rgba(255,255,255,0.4)",
+                    backdropFilter: "blur(10px)",
+                    "&:hover": { bgcolor: "rgba(255,255,255,0.3)" },
+                  }),
+                  ...!(activeMenu === item.label) && {
+                    "&:hover": { bgcolor: "rgba(255,255,255,0.1)" },
+                  },
+                }}
+              >
+                {item.label}
+              </Button>
+            ))
+          })()}
         </Box>
 
         <Box
@@ -418,28 +505,17 @@ export default function ProgramDetail() {
                     height: 24,
                   }}
                 />
-                {gap < 0 && (
-                  <Chip
-                    label="BEHIND EXPECTED"
-                    size="small"
-                    sx={{
-                      bgcolor: "#FFFBEB",
-                      color: "#D97706",
-                      fontWeight: 700,
-                      fontSize: "0.72rem",
-                      border: "1px solid #FDE68A",
-                      borderRadius: "6px",
-                      height: 24,
-                    }}
-                  />
-                )}
-                {gap >= 0 && (
-                   <Chip
-                    label="ON TRACK"
-                    size="small"
-                    sx={{ bgcolor: "#ECFDF5", color: "#059669", fontWeight: 700, fontSize: "0.72rem", border: "1px solid #A7F3D0", borderRadius: "6px", height: 24 }}
-                  />
-                )}
+                <Chip
+                  label={indicator.toUpperCase()}
+                  size="small"
+                  sx={{
+                    ...getIndicatorStyle(indicator),
+                    fontWeight: 700,
+                    fontSize: "0.72rem",
+                    borderRadius: "6px",
+                    height: 24,
+                  }}
+                />
               </Box>
 
               {/* Meta info */}
@@ -602,6 +678,22 @@ export default function ProgramDetail() {
                 <Typography fontWeight={700} fontSize="1rem" color="#0F172A">
                   Task Breakdown by Tahapan/Action
                 </Typography>
+                {canManage() && (
+                  <Button
+                    onClick={() => navigate("/pic-tambah-tahapan")}
+                    sx={{
+                      color: "#1F77AE",
+                      fontWeight: 700,
+                      fontSize: "0.85rem",
+                      textTransform: "none",
+                      p: 0,
+                      minWidth: "auto",
+                      "&:hover": { bgcolor: "transparent" },
+                    }}
+                  >
+                    + Tambah Tahapan
+                  </Button>
+                )}
               </Box>
 
               <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
@@ -665,28 +757,51 @@ export default function ProgramDetail() {
                         </Box>
                       </Box>
 
-                      {/* Right: N tasks | View */}
+                      {/* Right: N tasks | View | Edit | Hapus */}
                       <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                         <Typography
-                            fontSize="0.82rem"
-                            fontWeight={600}
-                            color="#2563EB"
+                          fontSize="0.82rem"
+                          fontWeight={600}
+                          color="#2563EB"
                         >
-                            {section.tasks.length} tasks
+                          {section.tasks.length} tasks
                         </Typography>
                         <Pipe />
-                        <ActionBtn 
-                            label="View" 
-                            color="#2196F3" 
-                            onClick={() => navigate("/tahapan-detail", {
+                        <ActionBtn
+                          label="View"
+                          color="#2196F3"
+                          onClick={() => navigate("/tahapan-detail", {
                             state: {
-                                from: fromRoute,
-                                returnTo: "/program-detail",
-                                programId,
-                                stageId: section.id,
+                              from: fromRoute,
+                              returnTo: "/program-detail",
+                              programId,
+                              stageId: section.id,
                             },
-                            })} 
+                          })}
                         />
+                        {canManage() && (
+                          <>
+                            <Pipe />
+                            <ActionBtn
+                              label="Edit"
+                              color="#F97316"
+                              onClick={() => navigate("/pic-edit-tahapan", {
+                                state: {
+                                  from: "/program-detail",
+                                  programId,
+                                  sectionId: section.id,
+                                  namaTahapan: section.name,
+                                  deliverable: section.tasks.length + " tasks",
+                                  status: section.status || "Not Started",
+                                  planStart: "2026-07-01",
+                                  planFinish: "2026-12-31",
+                                },
+                              })}
+                            />
+                            <Pipe />
+                            <ActionBtn label="Hapus" color="#E9004A" onClick={() => handleDeleteSection(section.id)} />
+                          </>
+                        )}
                       </Box>
                     </Box>
 
@@ -872,11 +987,11 @@ export default function ProgramDetail() {
                                 </Box>
                               </Box>
 
-                              {/* View row — bottom right of task */}
+                              {/* View | Edit | Hapus row — bottom right of task */}
                               <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 0.5, mt: 1.2, pt: 1, borderTop: "1px solid #F1F5F9" }}>
-                                <ActionBtn 
-                                  label="View" 
-                                  color="#2196F3" 
+                                <ActionBtn
+                                  label="View"
+                                  color="#2196F3"
                                   onClick={() => navigate("/subtask-detail", {
                                     state: {
                                       from: fromRoute,
@@ -885,8 +1000,34 @@ export default function ProgramDetail() {
                                       stageId: section.id,
                                       taskId: task.id,
                                     },
-                                  })} 
+                                  })}
                                 />
+                                {canManage() && (
+                                  <>
+                                    <Pipe />
+                                    <ActionBtn
+                                      label="Edit"
+                                      color="#F97316"
+                                      onClick={() => navigate("/pic-edit-subtask", {
+                                        state: {
+                                          from: "/program-detail",
+                                          programId,
+                                          stageId: section.id,
+                                          taskId: task.id,
+                                          namaSubtask: task.title,
+                                          status: task.status,
+                                          startDate: task.dateRange?.split(" - ")[0] || "",
+                                          deadline: task.dateRange?.split(" - ")[1] || "",
+                                          expectedProgress: task.expected,
+                                          actualProgress: task.actual,
+                                          pic: "Unknown", // Can be properly passed if available
+                                        },
+                                      })}
+                                    />
+                                    <Pipe />
+                                    <ActionBtn label="Hapus" color="#E9004A" onClick={() => handleDeleteTask(task.id)} />
+                                  </>
+                                )}
                               </Box>
                             </Box>
                           );

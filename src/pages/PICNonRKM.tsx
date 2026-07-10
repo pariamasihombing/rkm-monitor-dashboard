@@ -29,6 +29,7 @@ import { statuses } from "../data/dashboardMock";
 import logoDanantara from "../assets/logo-danantara.png";
 import logoPelindo from "../assets/logo-pelindo.png";
 import batikOrnament from "../assets/batik 1.png";
+import { canManage } from "../utils/rbac";
 
 /* ================= TYPES ================= */
 
@@ -394,7 +395,7 @@ export default function PICNonRKM() {
                     Tahapan List
                   </Typography>
                 </Box>
-                {activeTab === "Program" && (
+                {activeTab === "Program" && canManage() && (
                   <Button
                     onClick={() => navigate("/pic-tambah-program", { state: { from: "/pic-non-rkm" } })}
                     sx={{
@@ -404,7 +405,7 @@ export default function PICNonRKM() {
                       textTransform: "none",
                       p: 0,
                       minWidth: "auto",
-                      "&:hover": { 
+                      "&:hover": {
                         bgcolor: "transparent",
                       },
                     }}
@@ -500,7 +501,7 @@ export default function PICNonRKM() {
                         {/* Secondary (PIC or Program Name) */}
                         <TableCell sx={{ py: 2 }}>
                           <Typography fontWeight={600} fontSize="0.85rem" sx={{ color: "#727989" }}>
-                            {activeTab === "Program" 
+                            {activeTab === "Program"
                               ? (item.pic ? item.pic.split(" | ").filter((part: string) => part !== "").join(", ") : "-")
                               : item.programName}
                           </Typography>
@@ -578,11 +579,11 @@ export default function PICNonRKM() {
                           <Box sx={{ display: "flex", gap: 1, alignItems: "center", justifyContent: "center" }}>
                             <Button
                               size="small"
-                              onClick={() => navigate("/pic-program-detail", { 
-                                state: { 
-                                  from: "/pic-non-rkm", 
-                                  programId: activeTab === "Program" ? item.id_program : item.programId 
-                                } 
+                              onClick={() => navigate("/pic-program-detail", {
+                                state: {
+                                  from: "/pic-non-rkm",
+                                  programId: activeTab === "Program" ? item.id_program : item.programId
+                                }
                               })}
                               sx={{
                                 textTransform: "none",
@@ -596,66 +597,70 @@ export default function PICNonRKM() {
                             >
                               View
                             </Button>
-                            <Typography sx={{ fontSize: "0.8rem", color: "#DBDBDB" }}>|</Typography>
-                            <Button
-                              size="small"
-                              onClick={() => {
-                                if (activeTab === "Program") {
-                                  navigate("/pic-edit-program", {
-                                    state: {
-                                      from: "/pic-non-rkm",
-                                      programId: item.id_program,
-                                      namaProgram: item.name,
-                                      tipeProgram: item.type,
-                                      pic: item.pic,
-                                      status: item.status?.name,
-                                      planStart: item.plan_start,
-                                      planFinish: item.plan_finish,
-                                    },
-                                  });
-                                } else {
-                                  navigate("/pic-edit-tahapan", {
-                                    state: {
-                                      from: "/pic-non-rkm",
-                                      programId: item.programId,
-                                      sectionId: item.id_stage,
-                                      namaTahapan: item.name,
-                                      deliverable: item.deliverable,
-                                      status: item.status?.name,
-                                      planStart: item.plan_start,
-                                      planFinish: item.plan_finish,
-                                    },
-                                  });
-                                }
-                              }}
-                              sx={{
-                                textTransform: "none",
-                                fontWeight: 700,
-                                color: "#F97316",
-                                fontSize: "0.85rem",
-                                p: 0,
-                                minWidth: "auto",
-                                "&:hover": { bgcolor: "transparent" },
-                              }}
-                            >
-                              Edit
-                            </Button>
-                            <Typography sx={{ fontSize: "0.8rem", color: "#DBDBDB" }}>|</Typography>
-                            <Button
-                              size="small"
-                              onClick={() => activeTab === "Program" ? handleDelete(item.id_program) : handleDeleteStage(item.id_stage)}
-                              sx={{
-                                textTransform: "none",
-                                fontWeight: 700,
-                                color: "#E9004A",
-                                fontSize: "0.85rem",
-                                p: 0,
-                                minWidth: "auto",
-                                "&:hover": { bgcolor: "transparent" },
-                              }}
-                            >
-                              Hapus
-                            </Button>
+                            {canManage() && (
+                              <>
+                                <Typography sx={{ fontSize: "0.8rem", color: "#DBDBDB" }}>|</Typography>
+                                <Button
+                                  size="small"
+                                  onClick={() => {
+                                    if (activeTab === "Program") {
+                                      navigate("/pic-edit-program", {
+                                        state: {
+                                          from: "/pic-non-rkm",
+                                          programId: item.id_program,
+                                          namaProgram: item.name,
+                                          tipeProgram: item.type,
+                                          pic: item.pic,
+                                          status: item.status?.name,
+                                          planStart: item.plan_start,
+                                          planFinish: item.plan_finish,
+                                        },
+                                      });
+                                    } else {
+                                      navigate("/pic-edit-tahapan", {
+                                        state: {
+                                          from: "/pic-non-rkm",
+                                          programId: item.programId,
+                                          sectionId: item.id_stage,
+                                          namaTahapan: item.name,
+                                          deliverable: item.deliverable,
+                                          status: item.status?.name,
+                                          planStart: item.plan_start,
+                                          planFinish: item.plan_finish,
+                                        },
+                                      });
+                                    }
+                                  }}
+                                  sx={{
+                                    textTransform: "none",
+                                    fontWeight: 700,
+                                    color: "#F97316",
+                                    fontSize: "0.85rem",
+                                    p: 0,
+                                    minWidth: "auto",
+                                    "&:hover": { bgcolor: "transparent" },
+                                  }}
+                                >
+                                  Edit
+                                </Button>
+                                <Typography sx={{ fontSize: "0.8rem", color: "#DBDBDB" }}>|</Typography>
+                                <Button
+                                  size="small"
+                                  onClick={() => activeTab === "Program" ? handleDelete(item.id_program) : handleDeleteStage(item.id_stage)}
+                                  sx={{
+                                    textTransform: "none",
+                                    fontWeight: 700,
+                                    color: "#E9004A",
+                                    fontSize: "0.85rem",
+                                    p: 0,
+                                    minWidth: "auto",
+                                    "&:hover": { bgcolor: "transparent" },
+                                  }}
+                                >
+                                  Hapus
+                                </Button>
+                              </>
+                            )}
                           </Box>
                         </TableCell>
                       </TableRow>

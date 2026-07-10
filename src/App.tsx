@@ -19,6 +19,14 @@ import PICEditProgram from "./pages/PICEditProgram";
 import PICEditTahapan from "./pages/PICEditTahapan";
 import PICEditSubtask from "./pages/PICEditSubtask";
 import SubtaskDetail from "./pages/SubtaskDetail";
+import ManageUsers from "./pages/ManageUsers";
+import PengaturanAkun from "./pages/PengaturanAkun";
+import { canManage } from "./utils/rbac";
+
+/** Route guard: hanya Admin dan PIC yang boleh mengakses Kelola Akun. */
+function ProtectedManageUsers() {
+  return canManage() ? <ManageUsers /> : <Navigate to="/dashboard" replace />;
+}
 
 export default function App() {
   return (
@@ -32,6 +40,8 @@ export default function App() {
         <Route path="/program-detail" element={<ProgramDetail />} />
         <Route path="/tahapan-detail" element={<TahapanDetail />} />
         <Route path="/subtask-detail" element={<SubtaskDetail />} />
+        <Route path="/manage-users" element={<ProtectedManageUsers />} />
+        <Route path="/pengaturan-akun" element={<PengaturanAkun />} />
         <Route path="/pic-dashboard" element={<PICDashboard />} />
         <Route path="/pic-rkm" element={<PICRKM />} />
         <Route path="/pic-non-rkm" element={<PICNonRKM />} />
@@ -49,4 +59,3 @@ export default function App() {
     </BrowserRouter>
   );
 }
-

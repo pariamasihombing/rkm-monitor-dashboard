@@ -16,6 +16,7 @@ import {
   CalendarToday as CalendarIcon,
   InsertDriveFile as FileIcon,
   Warning as WarningIcon,
+  ManageAccounts as ManageAccountsIcon,
 } from "@mui/icons-material";
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -24,6 +25,7 @@ import logoDanantara from "../assets/logo-danantara.png";
 import logoPelindo from "../assets/logo-pelindo.png";
 import batikOrnament from "../assets/batik 1.png";
 import { programById, type TaskStatus } from "../data/programDetailMock";
+import { canManage } from "../utils/rbac";
 
 /* ================= STATUS CHIP STYLES ================= */
 
@@ -78,6 +80,7 @@ const routeToMenuLabel: Record<string, string> = {
   "/rkm": "RKM / Program",
   "/non-rkm": "Non RKM",
   "/weekly-monitoring": "Weekly Monitoring",
+  "/manage-users": "Kelola Akun",
 };
 
 /* ================= COMPONENT ================= */
@@ -159,6 +162,24 @@ export default function TahapanDetail() {
     }
   };
 
+  const handleDeleteTask = async (taskId: number) => {
+    if (!window.confirm("Apakah Anda yakin ingin menghapus subtask ini?")) return;
+
+    try {
+      const response = await fetch(`http://localhost:8000/api/subtasks/${taskId}`, {
+        method: "DELETE",
+      });
+      if (response.ok) {
+        fetchStageDetail();
+      } else {
+        alert("Gagal menghapus subtask.");
+      }
+    } catch (error) {
+      console.error("Error deleting subtask:", error);
+      alert("Terjadi kesalahan koneksi.");
+    }
+  };
+
   const [profileAnchor, setProfileAnchor] = useState<HTMLElement | null>(null);
   const [activeMenu, setActiveMenu] = useState(
     routeToMenuLabel[fromRoute] ?? "RKM / Program"
@@ -192,26 +213,32 @@ export default function TahapanDetail() {
         </Box>
 
         <Box sx={{ px: -2 }}>
-          {[
-            { icon: DashboardIcon,  label: "Dashboard" },
-            { icon: Assessment,     label: "RKM / Program" },
-            { icon: ContentPaste,   label: "Non RKM" },
-            { icon: TrendingUp,     label: "Weekly Monitoring" },
-          ].map((item) => (
-            <Button
-              key={item.label}
-              startIcon={<item.icon sx={{ fontSize: "1.4rem" }} />}
-              onClick={() => {
-                setActiveMenu(item.label);
-                const routeMap: Record<string, string> = {
-                  Dashboard: "/dashboard",
-                  "RKM / Program": "/rkm",
-                  "Non RKM": "/non-rkm",
-                  "Weekly Monitoring": "/weekly-monitoring",
-                };
-                const route = routeMap[item.label];
-                if (route) navigate(route);
-              }}
+          {(() => {
+            const menus = [
+              { icon: DashboardIcon, label: "Dashboard" },
+              { icon: Assessment, label: "RKM / Program" },
+              { icon: ContentPaste, label: "Non RKM" },
+              { icon: TrendingUp, label: "Weekly Monitoring" },
+            ];
+            if (canManage()) {
+              menus.push({ icon: ManageAccountsIcon, label: "Kelola Akun" });
+            }
+            return menus.map((item) => (
+              <Button
+                key={item.label}
+                startIcon={<item.icon sx={{ fontSize: "1.4rem" }} />}
+                onClick={() => {
+                  setActiveMenu(item.label);
+                  const routeMap: Record<string, string> = {
+                    "Dashboard": "/dashboard",
+                    "RKM / Program": "/rkm",
+                    "Non RKM": "/non-rkm",
+                    "Weekly Monitoring": "/weekly-monitoring",
+                    "Kelola Akun": "/manage-users"
+                  };
+                  const route = routeMap[item.label];
+                  if (route) navigate(route);
+                }}
               sx={{
                 color: "white",
                 justifyContent: "flex-start",
@@ -239,7 +266,7 @@ export default function TahapanDetail() {
             >
               {item.label}
             </Button>
-          ))}
+          ))})()}
         </Box>
 
         <Box sx={{ marginTop: "auto", marginLeft: "-24px", width: "111%", height: "auto", display: "flex", flexDirection: "column", justifyContent: "flex-end", overflow: "hidden" }}>
@@ -434,9 +461,27 @@ export default function TahapanDetail() {
               >
                 <CardContent sx={{ p: 4 }}>
                   {/* Header */}
-                  <Typography fontWeight={700} fontSize="1rem" color="#0F172A" mb={2.5}>
-                    Subtask List for this Tahapan
-                  </Typography>
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2.5 }}>
+                    <Typography fontWeight={700} fontSize="1rem" color="#0F172A">
+                      Subtask List for this Tahapan
+                    </Typography>
+                    {canManage() && (
+                      <Button
+                        onClick={() => navigate(`/pic-tambah-subtask/${stageId}`)}
+                        sx={{
+                          color: "#1F77AE",
+                          fontWeight: 700,
+                          fontSize: "0.85rem",
+                          textTransform: "none",
+                          p: 0,
+                          minWidth: "auto",
+                          "&:hover": { bgcolor: "transparent" },
+                        }}
+                      >
+                        + Tambah Subtask
+                      </Button>
+                    )}
+                  </Box>
 
                   <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
                     {stage.tasks?.map((task: any, taskIndex: number) => {
@@ -504,7 +549,7 @@ export default function TahapanDetail() {
                             </Box>
                             </Box>
 
-                            {/* View row — bottom right of task */}
+                            {/* View | Edit | Hapus row — bottom right of task */}
                             <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 0.5, mt: 1.5, pt: 1.5, borderTop: "1px solid #F1F5F9" }}>
                                 <ActionBtn 
                                     label="View" 
@@ -519,6 +564,32 @@ export default function TahapanDetail() {
                                         },
                                     })} 
                                 />
+                                {canManage() && (
+                                  <>
+                                    <Typography sx={{ fontSize: "0.8rem", color: "#DBDBDB" }}>|</Typography>
+                                    <ActionBtn 
+                                        label="Edit" 
+                                        color="#F97316" 
+                                        onClick={() => navigate("/pic-edit-subtask", {
+                                          state: {
+                                            from: "/tahapan-detail",
+                                            programId,
+                                            stageId,
+                                            taskId: task.id,
+                                            namaSubtask: task.title,
+                                            status: task.status,
+                                            startDate: task.dateRange?.split(" - ")[0] || "",
+                                            deadline: task.dateRange?.split(" - ")[1] || "",
+                                            expectedProgress: task.expected,
+                                            actualProgress: task.actual,
+                                            pic: "Unknown",
+                                          },
+                                        })} 
+                                    />
+                                    <Typography sx={{ fontSize: "0.8rem", color: "#DBDBDB" }}>|</Typography>
+                                    <ActionBtn label="Hapus" color="#E9004A" onClick={() => handleDeleteTask(task.id)} />
+                                  </>
+                                )}
                             </Box>
                         </Box>
                         );

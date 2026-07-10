@@ -19,6 +19,13 @@ $router->get('/', function () use ($router) {
 
 $router->get('/api/dashboard', 'DashboardController@index');
 $router->get('/api/weekly-monitoring', 'WeeklyMonitoringController@index');
+$router->get('/api/users', function () {
+    return response()->json([
+        'message' => 'Use POST /api/users to create a user and send an email notification.',
+    ]);
+});
+$router->post('/api/users', 'UserController@store');
+$router->post('/api/notify-password', 'UserController@notifyPassword');
 
 $router->get('/api/programs', 'ProgramController@index');
 $router->get('/api/programs/{id}', 'ProgramController@show');

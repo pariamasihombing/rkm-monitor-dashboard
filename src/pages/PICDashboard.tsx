@@ -6,6 +6,10 @@ import {
   Button,
   Typography,
   MenuItem,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from "@mui/material";
 import {
   Dashboard as DashboardIcon,
@@ -16,6 +20,7 @@ import {
   Warning as WarningIcon,
   TrendingDown as TrendingDownIcon,
   AccessTime as AccessTimeIcon,
+  ManageAccounts as ManageAccountsIcon,
 } from "@mui/icons-material";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -29,6 +34,7 @@ import {
 import logoDanantara from "../assets/logo-danantara.png";
 import logoPelindo from "../assets/logo-pelindo.png";
 import batikOrnament from "../assets/batik 1.png";
+import { canManage } from "../utils/rbac";
 import {
   AreaChart,
   Area,
@@ -156,6 +162,11 @@ export default function PICDashboard() {
   const [activeMenu, setActiveMenu] = useState("Dashboard");
   const [dashData, setDashData] = useState(defaultDashboard);
 
+
+  // === TAMBAHAN STATE UNTUK EDIT MODAL ===
+  const [selectedProgram, setSelectedProgram] = useState<any>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
   useEffect(() => {
     const delay = setTimeout(() => {
       const params = new URLSearchParams();
@@ -172,6 +183,33 @@ export default function PICDashboard() {
     }, 400);
     return () => clearTimeout(delay);
   }, [selectedStatus, selectedAlarm, selectedPIC, selectedDate, searchQuery]);
+
+  // === FUNGSI HANDLER HAPUS ===
+  const handleDeleteAlert = async (id: number) => {
+    const isConfirmed = window.confirm("Apakah Anda yakin ingin menghapus data ini? Aksi ini tidak dapat dibatalkan.");
+    if (!isConfirmed) return;
+
+    try {
+      // (Opsional) Lakukan request DELETE ke backend di sini jika API sudah siap
+      // await fetch(`http://localhost:8000/api/programs/${id}`, { method: 'DELETE' });
+
+      // Menghapus data dari UI secara instan tanpa perlu refresh
+      setDashData((prev) => ({
+        ...prev,
+        alerts: prev.alerts.filter((alert: any) => alert.id !== id),
+      }));
+      
+    } catch (error) {
+      console.error("Gagal menghapus data:", error);
+      alert("Terjadi kesalahan saat menghapus data.");
+    }
+  };
+
+  // === FUNGSI HANDLER EDIT ===
+  const handleEditClick = (alertData: any) => {
+    setSelectedProgram(alertData);
+    setIsEditModalOpen(true);
+  };
 
   const MetricCard = ({
     label,
@@ -222,24 +260,18 @@ export default function PICDashboard() {
 
         <Box sx={{ px: -2 }}>
           {[
-            { icon: DashboardIcon, label: "Dashboard" },
-            { icon: Assessment, label: "RKM / Program" },
-            { icon: ContentPaste, label: "Non RKM" },
-            { icon: TrendingUp, label: "Weekly Monitoring" },
+            { icon: DashboardIcon, label: "Dashboard", route: "/pic-dashboard" },
+            { icon: Assessment, label: "RKM / Program", route: "/pic-rkm" },
+            { icon: ContentPaste, label: "Non RKM", route: "/pic-non-rkm" },
+            { icon: TrendingUp, label: "Weekly Monitoring", route: "/pic-weekly-monitoring" },
+            ...(canManage() ? [{ icon: ManageAccountsIcon, label: "Kelola Akun", route: "/manage-users" }] : []),
           ].map((item) => (
             <Button
               key={item.label}
               startIcon={<item.icon sx={{ fontSize: "1.4rem" }} />}
               onClick={() => {
                 setActiveMenu(item.label);
-                const routeMap: Record<string, string> = {
-                  "Dashboard": "/pic-dashboard",
-                  "RKM / Program": "/pic-rkm",
-                  "Non RKM": "/pic-non-rkm",
-                  "Weekly Monitoring": "/pic-weekly-monitoring",
-                };
-                const route = routeMap[item.label];
-                if (route) navigate(route);
+                if (item.route) navigate(item.route);
               }}
               sx={{
                 color: "white",
@@ -838,40 +870,42 @@ export default function PICDashboard() {
                         >
                           View
                         </Button>
-                        <Typography sx={{ fontSize: "0.8rem", color: "#DBDBDB" }}>|</Typography>
-                        <Button
-                          size="small"
-                          onClick={() => navigate("/pic-edit-subtask", { state: { from: "/pic-dashboard", alertId: alert.id, title: alert.title, programId: alert.programId } })}
-                          sx={{
-                            textTransform: "none",
-                            fontWeight: 700,
-                            color: "#F97316",
-                            fontSize: "0.85rem",
-                            p: 0,
-                            minWidth: "auto",
-                            "&:hover": { bgcolor: "transparent" }
-                          }}
-                        >
-                          Edit
-                        </Button>
-                        <Typography sx={{ fontSize: "0.8rem", color: "#DBDBDB" }}>|</Typography>
-                        <Button
-                          size="small"
-                          onClick={() => {
-                            console.log("Delete alert:", alert.id);
-                          }}
-                          sx={{
-                            textTransform: "none",
-                            fontWeight: 700,
-                            color: "#E9004A",
-                            fontSize: "0.85rem",
-                            p: 0,
-                            minWidth: "auto",
-                            "&:hover": { bgcolor: "transparent" }
-                          }}
-                        >
-                          Hapus
-                        </Button>
+                        {canManage() && (
+                          <>
+                            <Typography sx={{ fontSize: "0.8rem", color: "#DBDBDB" }}>|</Typography>
+                            <Button
+                              size="small"
+                              onClick={() => handleEditClick(alert)}
+                              sx={{
+                                textTransform: "none",
+                                fontWeight: 700,
+                                color: "#F97316",
+                                fontSize: "0.85rem",
+                                p: 0,
+                                minWidth: "auto",
+                                "&:hover": { bgcolor: "transparent" }
+                              }}
+                            >
+                              Edit
+                            </Button>
+                            <Typography sx={{ fontSize: "0.8rem", color: "#DBDBDB" }}>|</Typography>
+                            <Button
+                              size="small"
+                              onClick={() => handleDeleteAlert(alert.id)}
+                              sx={{
+                                textTransform: "none",
+                                fontWeight: 700,
+                                color: "#E9004A",
+                                fontSize: "0.85rem",
+                                p: 0,
+                                minWidth: "auto",
+                                "&:hover": { bgcolor: "transparent" }
+                              }}
+                            >
+                              Hapus
+                            </Button>
+                          </>
+                        )}
                       </Box>
                     </Box>
                   </Box>
@@ -881,6 +915,50 @@ export default function PICDashboard() {
             </CardContent>
           </Card>
         </Box>
+
+        {/* ================= MODAL EDIT ================= */}
+        <Dialog open={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} maxWidth="sm" fullWidth>
+          <DialogTitle sx={{ fontWeight: 700, color: "#0C4B7D" }}>Edit Detail Alert</DialogTitle>
+          <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2.5, pt: 2 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: -1 }}>
+              Data di bawah ini disimulasikan dari tabel database Anda.
+            </Typography>
+            <TextField
+              label="Nama Program"
+              fullWidth
+              value={selectedProgram?.title || ""}
+              onChange={(e) => setSelectedProgram({...selectedProgram, title: e.target.value})}
+              sx={{ mt: 1 }}
+            />
+            <TextField
+              label="Status Krisis"
+              fullWidth
+              value={selectedProgram?.status || ""}
+              disabled
+            />
+            <TextField
+              label="Tanggal Deadline"
+              fullWidth
+              value={selectedProgram?.date || ""}
+              onChange={(e) => setSelectedProgram({...selectedProgram, date: e.target.value})}
+            />
+          </DialogContent>
+          <DialogActions sx={{ p: 3, pt: 0 }}>
+            <Button onClick={() => setIsEditModalOpen(false)} color="inherit" sx={{ fontWeight: 600 }}>Batal</Button>
+            <Button 
+              variant="contained" 
+              onClick={() => {
+                // Di sini nanti API UPDATE bisa dipanggil
+                setIsEditModalOpen(false);
+                alert(`Data '${selectedProgram?.title}' berhasil diperbarui! (Simulasi UI)`);
+              }} 
+              sx={{ bgcolor: "#0C4B7D", fontWeight: 600, "&:hover": { bgcolor: "#135B8E" } }}
+            >
+              Simpan Perubahan
+            </Button>
+          </DialogActions>
+        </Dialog>
+
       </Box>
     </Box>
   );

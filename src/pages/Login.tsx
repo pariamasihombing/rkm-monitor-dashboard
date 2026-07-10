@@ -13,24 +13,62 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  // Dummy credentials — nanti diganti API backend
-  const USERS = [
-    { nip: "admin001", password: "admin123", role: "admin" },
-    { nip: "pic001", password: "pic123", role: "pic" },
-  ];
+  // Kredensial Admin darurat agar tidak terkunci jika localStorage terhapus
+  const FALLBACK_ADMIN = { nip: "admin", password: "admin" };
 
   const handleLogin = () => {
-    const match = USERS.find(
-      (u) => u.nip === username && u.password === password
-    );
-    if (match) {
-      setError("");
-      if (match.role === "pic") {
-        navigate("/pic-dashboard");
-      } else {
-        navigate("/dashboard");
+    const inputNIP = username.trim();
+    const inputPassword = password;
+
+    // 1. Ambil data user dari localStorage
+    let managedUsers: Array<{
+      nip: string;
+      password?: string;
+      name: string;
+      role: string;
+      status?: string;
+    }> = [];
+    try {
+      const stored = localStorage.getItem("manageUsersData");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) managedUsers = parsed;
       }
+    } catch {
+      managedUsers = [];
+    }
+
+    // 2. Validasi: cocokkan NIP dan password dengan data di manageUsersData
+    const match = managedUsers.find(
+      (u) => u.nip === inputNIP && u.password === inputPassword
+    );
+
+    // 3. Fallback Admin Super Admin bawaan
+    const isFallbackAdmin =
+      inputNIP === FALLBACK_ADMIN.nip && inputPassword === FALLBACK_ADMIN.password;
+
+    // Akun dari manageUsersData yang berstatus Nonaktif tidak boleh login.
+    // Fallback Admin tetap diizinkan tanpa terpengaruh pengecekan ini.
+    if (match && match.status === "Nonaktif") {
+      setError("Akun Anda telah dinonaktifkan. Silakan hubungi Admin.");
+      return;
+    }
+
+    if (match || isFallbackAdmin) {
+      const role = isFallbackAdmin ? "Admin" : match!.role;
+      const name = isFallbackAdmin ? "Administrator" : match!.name;
+      // Hanya 2 role yang valid: 'Admin' dan 'Guest'. Semua role lain dianggap 'Guest'.
+      const normalizedRole: "Admin" | "Guest" = role === "Admin" ? "Admin" : "Guest";
+
+      // 4. Set session & redirect
+      setError("");
+      localStorage.setItem("isLoggedIn", "true");
+      localStorage.setItem("userRole", normalizedRole);
+      localStorage.setItem("userName", name);
+
+      navigate("/dashboard");
     } else {
+      // 5. Error handling — tampilkan pesan di UI
       setError("NIP atau password salah.");
     }
   };

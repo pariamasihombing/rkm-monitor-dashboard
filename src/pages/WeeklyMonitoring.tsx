@@ -22,6 +22,7 @@ import {
   TrendingUp,
   Search as SearchIcon,
   CalendarToday as CalendarIcon,
+  ManageAccounts as ManageAccountsIcon,
 } from "@mui/icons-material";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -29,6 +30,7 @@ import ProfileMenu from "../components/ProfileMenu";
 import logoDanantara from "../assets/logo-danantara.png";
 import logoPelindo from "../assets/logo-pelindo.png";
 import batikOrnament from "../assets/batik 1.png";
+import { canManage } from "../utils/rbac";
 
 /* ================= TYPES ================= */
 
@@ -85,14 +87,14 @@ export default function WeeklyMonitoring() {
 
   /* ---- filter states ---- */
   const [selectedWeek, setSelectedWeek] = useState<"Last Week" | "This Week" | "Next Week">("This Week");
-  
+
   // Calculate dates based on selectedWeek
   const dateRange = (() => {
     if (selectedWeek === "Last Week") return getWeekRange(-1);
     if (selectedWeek === "Next Week") return getWeekRange(1);
     return getWeekRange(0);
   })();
-  
+
   const [selectedStatus, setSelectedStatus] = useState("All");
   const [selectedProgram, setSelectedProgram] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
@@ -112,6 +114,17 @@ export default function WeeklyMonitoring() {
   const [profileAnchor, setProfileAnchor] = useState<HTMLElement | null>(null);
   const [activeMenu, setActiveMenu] = useState("Weekly Monitoring");
 
+  const menuItems = [
+    { icon: DashboardIcon, label: "Dashboard", route: "/dashboard" },
+    { icon: Assessment, label: "RKM / Program", route: "/rkm" },
+    { icon: ContentPaste, label: "Non RKM", route: "/non-rkm" },
+    { icon: TrendingUp, label: "Weekly Monitoring", route: "/weekly-monitoring" },
+  ];
+
+  if (canManage()) {
+    menuItems.push({ icon: ManageAccountsIcon, label: "Kelola Akun", route: "/manage-users" });
+  }
+
   /* ---- fetch programs list for dropdown ---- */
   useEffect(() => {
     fetch("http://localhost:8000/api/programs")
@@ -121,7 +134,7 @@ export default function WeeklyMonitoring() {
           data.map((p: any) => ({ id: p.id_program, name: p.name }))
         );
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   /* ---- fetch weekly monitoring data ---- */
@@ -156,10 +169,10 @@ export default function WeeklyMonitoring() {
 
   /* ---- card config ---- */
   const summaryCards = [
-    { label: "Due This Week",      value: metrics.dueThisWeek,       color: "#0C4B7D" },
+    { label: "Due This Week", value: metrics.dueThisWeek, color: "#0C4B7D" },
     { label: "Completed This Week", value: metrics.completedThisWeek, color: "#009E6D" },
-    { label: "Overdue Carryover",  value: metrics.overdueCarryover,   color: "#E9004A" },
-    { label: "Newly Started",      value: metrics.newlyStarted,       color: "#9B1CFC" },
+    { label: "Overdue Carryover", value: metrics.overdueCarryover, color: "#E9004A" },
+    { label: "Newly Started", value: metrics.newlyStarted, color: "#9B1CFC" },
   ];
 
   /* ---- shared table header style ---- */
@@ -187,7 +200,7 @@ export default function WeeklyMonitoring() {
     border: "2px solid #DBDBDB", outline: "1px solid #DBDBDB", borderRadius: "4px", bgcolor: "#FFFFFF",
     "& td": { borderRadius: "4px", border: "none" },
     "& td:first-of-type": { borderTopLeftRadius: "4px", borderBottomLeftRadius: "4px" },
-    "& td:last-of-type":  { borderTopRightRadius: "4px", borderBottomRightRadius: "4px" },
+    "& td:last-of-type": { borderTopRightRadius: "4px", borderBottomRightRadius: "4px" },
     "&:hover": { bgcolor: "#FAFAFA" },
   };
 
@@ -201,7 +214,7 @@ export default function WeeklyMonitoring() {
         label={status}
         sx={{
           bgcolor: isNotStarted ? "#F5F5F5" : isDone ? "#E8F5E9" : "#F0F6FF",
-          color:   isNotStarted ? "#727989" : isDone ? "#2E7D32" : "#3E65EB",
+          color: isNotStarted ? "#727989" : isDone ? "#2E7D32" : "#3E65EB",
           fontWeight: 700, fontSize: "0.8rem", borderRadius: "10px",
           border: isNotStarted ? "1px solid #DBDBDB" : isDone ? "1px solid #A5D6A7" : "1px solid #C3DDFF",
         }}
@@ -226,23 +239,13 @@ export default function WeeklyMonitoring() {
         </Box>
 
         <Box sx={{ px: -2 }}>
-          {[
-            { icon: DashboardIcon, label: "Dashboard" },
-            { icon: Assessment,    label: "RKM / Program" },
-            { icon: ContentPaste,  label: "Non RKM" },
-            { icon: TrendingUp,    label: "Weekly Monitoring" },
-          ].map((item) => (
+          {menuItems.map((item) => (
             <Button
               key={item.label}
               startIcon={<item.icon sx={{ fontSize: "1.4rem" }} />}
               onClick={() => {
                 setActiveMenu(item.label);
-                const routeMap: Record<string, string> = {
-                  "Dashboard": "/dashboard", "RKM / Program": "/rkm",
-                  "Non RKM": "/non-rkm", "Weekly Monitoring": "/weekly-monitoring",
-                };
-                const route = routeMap[item.label];
-                if (route) navigate(route);
+                navigate(item.route);
               }}
               sx={{
                 color: "white", justifyContent: "flex-start", mb: 1, px: 2, py: 1,
@@ -285,7 +288,7 @@ export default function WeeklyMonitoring() {
         >
           <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
             <Box component="img" src={logoDanantara} alt="Danantara" sx={{ height: 30, width: "auto" }} />
-            <Box component="img" src={logoPelindo}   alt="Pelindo"   sx={{ height: 50, width: "auto" }} />
+            <Box component="img" src={logoPelindo} alt="Pelindo" sx={{ height: 50, width: "auto" }} />
           </Box>
           <ProfileMenu profileAnchor={profileAnchor} setProfileAnchor={setProfileAnchor} userName="Pariama Valentino" />
         </Box>
@@ -424,9 +427,9 @@ export default function WeeklyMonitoring() {
                       <TableCell align="center" sx={{ ...thCellSx, width: "14%" }}>Tahapan</TableCell>
                       <TableCell align="center" sx={{ ...thCellSx, width: "24%" }}>Subtask</TableCell>
                       <TableCell align="center" sx={{ ...thCellSx, width: "10%" }}>Deadline</TableCell>
-                      <TableCell align="center" sx={{ ...thCellSx, width: "8%"  }}>Progress</TableCell>
+                      <TableCell align="center" sx={{ ...thCellSx, width: "8%" }}>Progress</TableCell>
                       <TableCell align="center" sx={{ ...thCellSx, width: "14%" }}>Status</TableCell>
-                      <TableCell align="center" sx={{ ...thCellSx, width: "8%"  }}>Action</TableCell>
+                      <TableCell align="center" sx={{ ...thCellSx, width: "8%" }}>Action</TableCell>
                     </TableRow>
                   </TableHead>
 
