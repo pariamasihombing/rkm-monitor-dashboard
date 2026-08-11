@@ -1,3 +1,4 @@
+import { apiUrl } from "../utils/api";
 import {
   Box,
   Card,
@@ -29,7 +30,7 @@ import { useNavigate } from "react-router-dom";
 import ProfileMenu from "../components/ProfileMenu";
 import logoDanantara from "../assets/logo-danantara.png";
 import logoPelindo from "../assets/logo-pelindo.png";
-import batikOrnament from "../assets/batik 1.png";
+import batikOrnament from "../assets/batik-ornament.png";
 import { canManage } from "../utils/rbac";
 
 /* ================= MENU ITEMS ================= */
@@ -163,7 +164,7 @@ export default function PengaturanAkun() {
 
     // 4. Integrasi Email via API
     try {
-      const response = await fetch("http://localhost:8000/api/notify-password", {
+      const response = await fetch(apiUrl("/api/notify-password"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: emailUser || "user@example.com" }),

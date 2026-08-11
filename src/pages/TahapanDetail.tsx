@@ -1,3 +1,4 @@
+import { apiUrl } from "../utils/api";
 import {
   Box,
   Card,
@@ -15,17 +16,83 @@ import {
   ArrowBack as ArrowBackIcon,
   CalendarToday as CalendarIcon,
   InsertDriveFile as FileIcon,
+  ArrowForward as ArrowForwardIcon,
   Warning as WarningIcon,
   ManageAccounts as ManageAccountsIcon,
 } from "@mui/icons-material";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import ProfileMenu from "../components/ProfileMenu";
 import logoDanantara from "../assets/logo-danantara.png";
 import logoPelindo from "../assets/logo-pelindo.png";
-import batikOrnament from "../assets/batik 1.png";
+import batikOrnament from "../assets/batik-ornament.png";
 import { programById, type TaskStatus } from "../data/programDetailMock";
 import { canManage } from "../utils/rbac";
+
+type StageTask = {
+  id: number;
+  title: string;
+  deliverable?: string;
+  dateRange?: string;
+  file?: string;
+  status: TaskStatus;
+  overdue?: boolean;
+  actual?: number;
+  expected?: number;
+};
+
+type StageDetailData = {
+  id: number | string;
+  title: string;
+  programTitle?: string;
+  start?: string;
+  deadline?: string;
+  status?: { name?: TaskStatus | string };
+  deliverable?: string;
+  notes?: string;
+  actual: number;
+  expected: number;
+  gap: number;
+  overdue: number;
+  tasks?: StageTask[];
+};
+
+type ApiSubtask = {
+  id_subtask: number;
+  name: string;
+  deliverable?: string;
+  plan_start?: string;
+  plan_finish?: string;
+  status?: { name?: string };
+};
+
+type ApiStage = {
+  id_stage: number;
+  name: string;
+  program?: { name?: string };
+  plan_start?: string;
+  plan_finish?: string;
+  notes?: string;
+  actual_progress?: number;
+  expected_progress?: number;
+  gap?: number;
+  indicator?: string;
+  subtasks?: ApiSubtask[];
+};
+
+type TahapanLocationState = {
+  from?: string;
+  returnTo?: string;
+  programId?: string | number;
+  stageId?: string | number;
+};
+
+const normalizeTaskStatus = (status?: string): TaskStatus => {
+  const upperStatus = (status || "NOT STARTED").toUpperCase();
+  return upperStatus === "DONE" || upperStatus === "ON PROGRESS" || upperStatus === "NOT STARTED"
+    ? upperStatus
+    : "NOT STARTED";
+};
 
 /* ================= STATUS CHIP STYLES ================= */
 
@@ -56,8 +123,8 @@ const ActionBtn = ({
   <Button
     size="small"
     onClick={(e) => {
-        e.stopPropagation();
-        onClick?.(e);
+      e.stopPropagation();
+      onClick?.(e);
     }}
     sx={{
       textTransform: "none",
@@ -88,19 +155,16 @@ const routeToMenuLabel: Record<string, string> = {
 export default function TahapanDetail() {
   const navigate = useNavigate();
   const location = useLocation();
-  const fromRoute = location.state?.from || "/rkm";
-  const returnTo = location.state?.returnTo || "/program-detail";
-  const programId: any = location.state?.programId;
-  const stageId: any = location.state?.stageId;
+  const locationState = (location.state || {}) as TahapanLocationState;
+  const fromRoute = locationState.from || "/rkm";
+  const returnTo = locationState.returnTo || "/program-detail";
+  const programId = locationState.programId;
+  const stageId = locationState.stageId;
 
-  const [stage, setStage] = useState<any>(null);
+  const [stage, setStage] = useState<StageDetailData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchStageDetail();
-  }, [stageId]);
-
-  const fetchStageDetail = async () => {
+  const fetchStageDetail = useCallback(async () => {
     setLoading(true);
     console.log("Fetching stage with IDs:", { programId, stageId });
     try {
@@ -108,28 +172,28 @@ export default function TahapanDetail() {
         const prog = programById(programId);
         const section = prog?.sections.find(s => String(s.id) === String(stageId));
         if (section) {
-            setStage({
-                ...section,
-                programTitle: prog?.title,
-                start: prog?.start,
-                deadline: prog?.deadline,
-                status: { name: "ON PROGRESS" }, // Mock
-                deliverable: "Sample Deliverable",
-                notes: "Sample Notes",
-                actual: Math.round((section.tasks.filter((t: any) => t.status === "DONE").length / section.tasks.length) * 100) || 0,
-                expected: 50,
-                gap: -50,
-                overdue: section.tasks.filter(t => t.overdue).length
-            });
+          setStage({
+            ...section,
+            programTitle: prog?.title,
+            start: prog?.start,
+            deadline: prog?.deadline,
+            status: { name: "ON PROGRESS" }, // Mock
+            deliverable: "Sample Deliverable",
+            notes: "Sample Notes",
+            actual: Math.round((section.tasks.filter((t) => t.status === "DONE").length / section.tasks.length) * 100) || 0,
+            expected: 50,
+            gap: -50,
+            overdue: section.tasks.filter(t => t.overdue).length
+          });
         } else {
-            console.warn("Stage not found in mock data", { programId, stageId });
+          console.warn("Stage not found in mock data", { programId, stageId });
         }
       } else if (stageId) {
-        const response = await fetch(`http://localhost:8000/api/stages/${stageId}`);
+        const response = await fetch(apiUrl(`/api/stages/${stageId}`));
         if (!response.ok) throw new Error("Failed to fetch stage from API");
-        const data = await response.json();
-        
-        const normalized = {
+        const data = await response.json() as ApiStage;
+
+        const normalized: StageDetailData = {
           ...data,
           id: data.id_stage,
           title: data.name,
@@ -137,20 +201,20 @@ export default function TahapanDetail() {
           start: data.plan_start,
           deadline: data.plan_finish,
           notes: data.notes,
-          actual: data.subtasks?.length > 0 ? Math.round((data.subtasks.filter((t: any) => t.status?.name === "DONE").length / data.subtasks.length) * 100) : 0,
-          expected: 50, // Mocked
-          gap: 0, // Mocked
-          overdue: 0, // Mocked
-          tasks: data.subtasks?.map((t: any) => ({
+          actual: data.actual_progress ?? (data.subtasks && data.subtasks.length > 0 ? Math.round((data.subtasks.filter((t) => t.status?.name === "DONE").length / data.subtasks.length) * 100) : 0),
+          expected: data.expected_progress ?? 0,
+          gap: data.gap ?? 0,
+          overdue: data.indicator === "Overdue" ? 1 : 0,
+          tasks: data.subtasks?.map((t) => ({
             id: t.id_subtask,
             title: t.name,
             deliverable: t.deliverable,
             dateRange: `${t.plan_start} - ${t.plan_finish}`,
-            status: (t.status?.name || "NOT STARTED").toUpperCase(),
+            status: normalizeTaskStatus(t.status?.name),
             overdue: false,
           })) || []
         };
-        
+
         setStage(normalized);
       } else {
         console.error("No stageId provided for stage detail");
@@ -160,13 +224,17 @@ export default function TahapanDetail() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [programId, stageId]);
+
+  useEffect(() => {
+    fetchStageDetail();
+  }, [fetchStageDetail]);
 
   const handleDeleteTask = async (taskId: number) => {
     if (!window.confirm("Apakah Anda yakin ingin menghapus subtask ini?")) return;
 
     try {
-      const response = await fetch(`http://localhost:8000/api/subtasks/${taskId}`, {
+      const response = await fetch(apiUrl(`/api/subtasks/${taskId}`), {
         method: "DELETE",
       });
       if (response.ok) {
@@ -239,34 +307,35 @@ export default function TahapanDetail() {
                   const route = routeMap[item.label];
                   if (route) navigate(route);
                 }}
-              sx={{
-                color: "white",
-                justifyContent: "flex-start",
-                mb: 1,
-                px: 2,
-                py: 1,
-                borderRadius: 3,
-                fontSize: "0.9rem",
-                whiteSpace: "nowrap",
-                border: "2px solid transparent",
-                fontWeight: activeMenu === item.label ? 900 : 600,
-                width: "calc(100% - 10px)",
-                ml: -1.5,
-                ...(activeMenu === item.label && {
-                  bgcolor: "rgba(255,255,255,0.25)",
-                  boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
-                  border: "2px solid rgba(255,255,255,0.4)",
-                  backdropFilter: "blur(10px)",
-                  "&:hover": { bgcolor: "rgba(255,255,255,0.3)" },
-                }),
-                ...!(activeMenu === item.label) && {
-                  "&:hover": { bgcolor: "rgba(255,255,255,0.1)" },
-                },
-              }}
-            >
-              {item.label}
-            </Button>
-          ))})()}
+                sx={{
+                  color: "white",
+                  justifyContent: "flex-start",
+                  mb: 1,
+                  px: 2,
+                  py: 1,
+                  borderRadius: 3,
+                  fontSize: "0.9rem",
+                  whiteSpace: "nowrap",
+                  border: "2px solid transparent",
+                  fontWeight: activeMenu === item.label ? 900 : 600,
+                  width: "calc(100% - 10px)",
+                  ml: -1.5,
+                  ...(activeMenu === item.label && {
+                    bgcolor: "rgba(255,255,255,0.25)",
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
+                    border: "2px solid rgba(255,255,255,0.4)",
+                    backdropFilter: "blur(10px)",
+                    "&:hover": { bgcolor: "rgba(255,255,255,0.3)" },
+                  }),
+                  ...!(activeMenu === item.label) && {
+                    "&:hover": { bgcolor: "rgba(255,255,255,0.1)" },
+                  },
+                }}
+              >
+                {item.label}
+              </Button>
+            ))
+          })()}
         </Box>
 
         <Box sx={{ marginTop: "auto", marginLeft: "-24px", width: "111%", height: "auto", display: "flex", flexDirection: "column", justifyContent: "flex-end", overflow: "hidden" }}>
@@ -294,7 +363,7 @@ export default function TahapanDetail() {
         >
           <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
             <Box component="img" src={logoDanantara} alt="Danantara" sx={{ height: 30, width: "auto" }} />
-            <Box component="img" src={logoPelindo}   alt="Pelindo"   sx={{ height: 50, width: "auto" }} />
+            <Box component="img" src={logoPelindo} alt="Pelindo" sx={{ height: 50, width: "auto" }} />
           </Box>
           <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
             <ProfileMenu
@@ -325,16 +394,16 @@ export default function TahapanDetail() {
           </Button>
 
           {loading ? (
-             <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "40vh" }}>
-                <CircularProgress />
-             </Box>
+            <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "40vh" }}>
+              <CircularProgress />
+            </Box>
           ) : !stage ? (
             <Box sx={{ p: 5, textAlign: "center" }}>
-                <Typography variant="h6" color="textSecondary">Data Tahapan tidak ditemukan.</Typography>
-                <Typography color="textSecondary" sx={{ mb: 3 }}>ID Tahapan: {stageId || "kosong"}</Typography>
-                <Button variant="contained" onClick={() => navigate(returnTo, { state: { from: fromRoute, programId } })}>
-                    Kembali ke Program Detail
-                </Button>
+              <Typography variant="h6" color="textSecondary">Data Tahapan tidak ditemukan.</Typography>
+              <Typography color="textSecondary" sx={{ mb: 3 }}>ID Tahapan: {stageId || "kosong"}</Typography>
+              <Button variant="contained" onClick={() => navigate(returnTo, { state: { from: fromRoute, programId } })}>
+                Kembali ke Program Detail
+              </Button>
             </Box>
           ) : (
             <>
@@ -348,65 +417,60 @@ export default function TahapanDetail() {
                   border: "1px solid #E8ECF4",
                 }}
               >
-                <CardContent sx={{ p: 4, pb: "32px !important" }}>
-                  {/* Breadcrumb style titles */}
-                  <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", mb: 2 }}>
+                <CardContent sx={{ p: 3, pb: "20px !important" }}>
+                  {/* Title row */}
+                  <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", mb: 1.5 }}>
                     <Box>
-                      <Typography fontSize="0.82rem" color="#64748B" fontWeight={600} mb={0.2}>
+                      <Typography fontSize="0.82rem" color="#64748B" fontWeight={600} mb={0.5}>
                         {stage.programTitle}
                       </Typography>
-                      <Typography fontSize="0.85rem" color="#267ABD" fontWeight={700} mb={0.8}>
+                      <Typography fontWeight={700} fontSize="1.15rem" sx={{ color: "#0F172A", flex: 1 }}>
                         Tahapan: {stage.title}
                       </Typography>
                     </Box>
                   </Box>
 
                   {/* Status Chips */}
-                  <Box sx={{ display: "flex", gap: 1, mb: 3 }}>
+                  <Box sx={{ display: "flex", gap: 1, mb: 2 }}>
                     <Chip
                       label={(stage.status?.name || "ON PROGRESS").toUpperCase()}
                       size="small"
-                      sx={{ bgcolor: "#EFF6FF", color: "#2563EB", fontWeight: 700, fontSize: "0.75rem", borderRadius: "6px", height: 26, px: 1, border: "1px solid #BFDBFE" }}
+                      sx={{ bgcolor: "#EFF6FF", color: "#2563EB", fontWeight: 700, fontSize: "0.72rem", border: "1px solid #BFDBFE", borderRadius: "6px", height: 24 }}
                     />
                   </Box>
 
-                  {/* Meta info Grid */}
-                  <Box sx={{ display: "flex", flexDirection: "column", gap: 2, mb: 3 }}>
-                    <Box>
-                      <Typography fontSize="0.85rem" color="#64748B" fontWeight={600} mb={0.5}>Deliverable :</Typography>
-                      <Typography fontSize="0.95rem" color="#0F172A" fontWeight={500}>{stage.deliverable || "-"}</Typography>
+                  {/* Meta info */}
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 0.6, mb: 2 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                      <Typography fontSize="0.82rem" color="#64748B">Deliverable :</Typography>
+                      <Typography fontSize="0.82rem" color="#0F172A" fontWeight={500}>{stage.deliverable || "-"}</Typography>
                     </Box>
 
-                    <Box>
-                      <Typography fontSize="0.85rem" color="#64748B" fontWeight={600} mb={0.5}>Notes / Catatan :</Typography>
-                      <Typography fontSize="0.95rem" color="#0F172A" fontWeight={500} sx={{ whiteSpace: "pre-wrap" }}>{stage.notes || "-"}</Typography>
-                    </Box>
-
-                    <Box sx={{ display: "flex", gap: 6 }}>
-                      <Box>
-                        <Typography fontSize="0.85rem" color="#64748B" fontWeight={600} mb={0.5}>Plan Start :</Typography>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                          <CalendarIcon sx={{ fontSize: "1.1rem", color: "#2563EB" }} />
-                          <Typography fontSize="0.95rem" color="#0F172A" fontWeight={700}>{stage.start}</Typography>
-                        </Box>
-                      </Box>
-                      <Box>
-                        <Typography fontSize="0.85rem" color="#64748B" fontWeight={600} mb={0.5}>Plan Finish :</Typography>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                          <CalendarIcon sx={{ fontSize: "1.1rem", color: "#E9004A" }} />
-                          <Typography fontSize="0.95rem" color="#0F172A" fontWeight={700}>{stage.deadline}</Typography>
-                        </Box>
-                      </Box>
+                    <Box sx={{ display: "flex", alignItems: "flex-start", gap: 0.5 }}>
+                      <Typography fontSize="0.82rem" color="#64748B" sx={{ whiteSpace: "nowrap" }}>Notes / Catatan :</Typography>
+                      <Typography fontSize="0.82rem" color="#0F172A" fontWeight={500} sx={{ whiteSpace: "pre-wrap" }}>{stage.notes || "-"}</Typography>
                     </Box>
                   </Box>
 
+                  {/* Date row */}
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Typography fontSize="0.82rem" color="#64748B">Start :</Typography>
+                    <Typography fontSize="0.82rem" color="#0F172A" fontWeight={600}>{stage.start}</Typography>
+                    <ArrowForwardIcon sx={{ fontSize: "0.9rem", color: "#94A3B8" }} />
+                    <Typography fontSize="0.82rem" color="#64748B">Deadline :</Typography>
+                    <Typography fontSize="0.82rem" color="#0F172A" fontWeight={600}>{stage.deadline}</Typography>
+                  </Box>
+
+                  {/* Divider */}
+                  <Box sx={{ borderTop: "1px solid #F1F5F9", mt: 2.5, mb: 2.5 }} />
+
                   {/* Metrics Grid */}
-                  <Box sx={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 1.5, mb: 3 }}>
+                  <Box sx={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 1.5 }}>
                     {[
-                      { label: "Actual",   value: `${stage.actual}%`,   color: "#2563EB" },
+                      { label: "Actual", value: `${stage.actual}%`, color: "#2563EB" },
                       { label: "Expected", value: `${stage.expected}%`, color: "#0F172A" },
-                      { label: "Gap",      value: `${stage.gap || 0}%`, color: (stage.gap || 0) < 0 ? "#E9004A" : "#009E6D"  },
-                      { label: "Overdue",  value: stage.overdue,        color: "#E9004A" },
+                      { label: "Gap", value: `${stage.gap || 0}%`, color: (stage.gap || 0) < 0 ? "#E9004A" : "#009E6D" },
+                      { label: "Overdue", value: stage.overdue, color: "#E9004A" },
                     ].map((m, i) => (
                       <Box
                         key={m.label}
@@ -430,27 +494,6 @@ export default function TahapanDetail() {
                       </Box>
                     ))}
                   </Box>
-
-                  {/* Divider */}
-                  <Box sx={{ borderTop: "1px solid #F1F5F9", mt: 4, mb: 3 }} />
-
-                  <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 2 }}>
-                    <Button
-                      variant="outlined"
-                      onClick={() => navigate(returnTo, { state: { from: fromRoute, programId } })}
-                      sx={{
-                        textTransform: "none",
-                        fontWeight: 700,
-                        borderRadius: 2,
-                        px: 3,
-                        borderColor: "#E2E8F0",
-                        color: "#64748B",
-                        "&:hover": { borderColor: "#CBD5E1", bgcolor: "#F8FAFC" }
-                      }}
-                    >
-                      Tutup
-                    </Button>
-                  </Box>
                 </CardContent>
               </Card>
 
@@ -459,7 +502,7 @@ export default function TahapanDetail() {
                 className="anim-fadein-up anim-d3"
                 sx={{ borderRadius: 2, boxShadow: "0 2px 12px rgba(21,101,192,0.06)", border: "1px solid #E8ECF4" }}
               >
-                <CardContent sx={{ p: 4 }}>
+                <CardContent sx={{ p: 3 }}>
                   {/* Header */}
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2.5 }}>
                     <Typography fontWeight={700} fontSize="1rem" color="#0F172A">
@@ -467,7 +510,14 @@ export default function TahapanDetail() {
                     </Typography>
                     {canManage() && (
                       <Button
-                        onClick={() => navigate(`/pic-tambah-subtask/${stageId}`)}
+                        onClick={() => navigate("/pic-tambah-subtask", {
+                          state: {
+                            from: fromRoute,
+                            returnTo: "/tahapan-detail",
+                            programId,
+                            sectionId: stageId,
+                          },
+                        })}
                         sx={{
                           color: "#1F77AE",
                           fontWeight: 700,
@@ -484,115 +534,115 @@ export default function TahapanDetail() {
                   </Box>
 
                   <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-                    {stage.tasks?.map((task: any, taskIndex: number) => {
-                        const isOverdueTask = task.overdue;
-                        return (
+                    {stage.tasks?.map((task, taskIndex) => {
+                      const isOverdueTask = task.overdue;
+                      return (
                         <Box
-                            key={task.id}
-                            sx={{
+                          key={task.id}
+                          sx={{
                             border: isOverdueTask ? "1px solid #FECDD3" : "1px solid #E2E8F0",
                             borderRadius: "8px",
-                            p: 2.5,
-                            bgcolor: isOverdueTask ? "#FFF5F5" : "#FAFBFC",
+                            p: 2,
+                            bgcolor: isOverdueTask ? "#FFF5F5" : "#FFFFFF",
                             position: "relative",
-                            transition: "box-shadow 0.2s ease, transform 0.2s ease",
-                            "&:hover": {
-                              boxShadow: "0 4px 12px rgba(21,101,192,0.08)",
-                              transform: "translateY(-1px)",
-                            },
-                            }}
+                          }}
                         >
-                            <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 2 }}>
+                          <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 2 }}>
                             {/* Task Left */}
                             <Box sx={{ flex: 1 }}>
-                                <Typography fontSize="0.9rem" fontWeight={700} color="#0F172A" mb={0.8}>
+                              <Typography fontSize="0.875rem" fontWeight={600} color="#0F172A" mb={0.6}>
                                 {taskIndex + 1}. {task.title}
-                                </Typography>
+                              </Typography>
 
-                                <Box sx={{ display: "flex", flexDirection: "column", gap: 0.8 }}>
-                                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                                    <Typography fontSize="0.8rem" color="#64748B" fontWeight={600}>Deliverable:</Typography>
-                                    <Typography fontSize="0.8rem" color="#0F172A" fontWeight={500}>{task.deliverable}</Typography>
-                                </Box>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 0.8 }}>
+                                <Typography fontSize="0.8rem" color="#94A3B8">Deliverable:</Typography>
+                                <Typography fontSize="0.8rem" color="#0F172A" fontWeight={600}>{task.deliverable}</Typography>
+                              </Box>
 
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
                                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                                    <CalendarIcon sx={{ fontSize: "0.85rem", color: "#2563EB" }} />
-                                    <Typography fontSize="0.8rem" color="#0F172A" fontWeight={600}>{task.dateRange}</Typography>
+                                  <CalendarIcon sx={{ fontSize: "0.85rem", color: "#94A3B8" }} />
+                                  <Typography fontSize="0.8rem" color="#64748B">{task.dateRange}</Typography>
                                 </Box>
 
                                 {task.file && (
-                                    <Box
+                                  <Box
                                     component="a"
                                     href="#"
-                                    sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, textDecoration: "none", "&:hover span": { textDecoration: "underline" } }}
-                                    >
+                                    sx={{ display: "flex", alignItems: "center", gap: 0.5, textDecoration: "none", "&:hover span": { textDecoration: "underline" } }}
+                                  >
                                     <FileIcon sx={{ fontSize: "0.85rem", color: "#2563EB" }} />
-                                    <Typography fontSize="0.8rem" color="#2563EB" fontWeight={600}>{task.file}</Typography>
+                                    <Box component="span" sx={{ fontSize: "0.8rem", color: "#2563EB", cursor: "pointer", textDecoration: "underline", textDecorationColor: "rgba(37,99,235,0.4)", textUnderlineOffset: "2px", fontWeight: 500 }}>
+                                      {task.file}
                                     </Box>
+                                  </Box>
                                 )}
-                                </Box>
+                              </Box>
                             </Box>
 
                             {/* Task Right – Status + badges */}
                             <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 0.8, minWidth: 110 }}>
-                                <Chip
+                              <Chip
                                 label={task.status}
                                 size="small"
                                 sx={{ ...getStatusStyle(task.status), fontWeight: 700, fontSize: "0.7rem", borderRadius: "6px", height: 22, letterSpacing: "0.3px" }}
-                                />
-                                {isOverdueTask && (
+                              />
+                              {isOverdueTask && (
                                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.4, bgcolor: "#FEF2F2", color: "#DC2626", border: "1px solid #FECACA", borderRadius: "6px", px: 1, py: 0.3 }}>
-                                    <WarningIcon sx={{ fontSize: "0.8rem" }} />
-                                    <Typography fontSize="0.7rem" fontWeight={700} letterSpacing="0.3px">OVERDUE</Typography>
+                                  <WarningIcon sx={{ fontSize: "0.8rem" }} />
+                                  <Typography fontSize="0.7rem" fontWeight={700} letterSpacing="0.3px">OVERDUE</Typography>
                                 </Box>
-                                )}
+                              )}
                             </Box>
-                            </Box>
+                          </Box>
 
-                            {/* View | Edit | Hapus row — bottom right of task */}
-                            <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 0.5, mt: 1.5, pt: 1.5, borderTop: "1px solid #F1F5F9" }}>
-                                <ActionBtn 
-                                    label="View" 
-                                    color="#2196F3" 
-                                    onClick={() => navigate("/subtask-detail", {
-                                        state: {
-                                            from: fromRoute,
-                                            returnTo: "/tahapan-detail",
-                                            programId,
-                                            stageId,
-                                            taskId: task.id,
-                                        },
-                                    })} 
+                          {/* View | Edit | Hapus row — bottom right of task */}
+                          <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 0.5, mt: 1.2, pt: 1, borderTop: "1px solid #F1F5F9" }}>
+                            <ActionBtn
+                              label="View"
+                              color="#2196F3"
+                              onClick={() => navigate("/subtask-detail", {
+                                state: {
+                                  from: fromRoute,
+                                  returnTo: "/tahapan-detail",
+                                  programId,
+                                  stageId,
+                                  programTitle: stage.programTitle,
+                                  stageTitle: stage.title,
+                                  taskId: task.id,
+                                },
+                              })}
+                            />
+                            {canManage() && (
+                              <>
+                                <Typography sx={{ fontSize: "0.8rem", color: "#DBDBDB" }}>|</Typography>
+                                <ActionBtn
+                                  label="Edit"
+                                  color="#F97316"
+                                  onClick={() => navigate("/pic-edit-subtask", {
+                                    state: {
+                                      from: "/tahapan-detail",
+                                      programId,
+                                      stageId,
+                                      taskId: task.id,
+                                      namaSubtask: task.title,
+                                      status: task.status,
+                                      planStart: task.dateRange?.split(" - ")[0] || "",
+                                      planEnd: task.dateRange?.split(" - ")[1] || "",
+                                      deliverable: task.deliverable || "",
+                                      expectedProgress: task.expected,
+                                      actualProgress: task.actual,
+                                      pic: "Unknown",
+                                    },
+                                  })}
                                 />
-                                {canManage() && (
-                                  <>
-                                    <Typography sx={{ fontSize: "0.8rem", color: "#DBDBDB" }}>|</Typography>
-                                    <ActionBtn 
-                                        label="Edit" 
-                                        color="#F97316" 
-                                        onClick={() => navigate("/pic-edit-subtask", {
-                                          state: {
-                                            from: "/tahapan-detail",
-                                            programId,
-                                            stageId,
-                                            taskId: task.id,
-                                            namaSubtask: task.title,
-                                            status: task.status,
-                                            startDate: task.dateRange?.split(" - ")[0] || "",
-                                            deadline: task.dateRange?.split(" - ")[1] || "",
-                                            expectedProgress: task.expected,
-                                            actualProgress: task.actual,
-                                            pic: "Unknown",
-                                          },
-                                        })} 
-                                    />
-                                    <Typography sx={{ fontSize: "0.8rem", color: "#DBDBDB" }}>|</Typography>
-                                    <ActionBtn label="Hapus" color="#E9004A" onClick={() => handleDeleteTask(task.id)} />
-                                  </>
-                                )}
-                            </Box>
+                                <Typography sx={{ fontSize: "0.8rem", color: "#DBDBDB" }}>|</Typography>
+                                <ActionBtn label="Hapus" color="#E9004A" onClick={() => handleDeleteTask(task.id)} />
+                              </>
+                            )}
+                          </Box>
                         </Box>
-                        );
+                      );
                     })}
                   </Box>
                 </CardContent>

@@ -1,3 +1,4 @@
+import { apiUrl } from "../utils/api";
 import {
   Box,
   Card,
@@ -13,19 +14,89 @@ import {
   ContentPaste,
   TrendingUp,
   ArrowBack as ArrowBackIcon,
-  CalendarToday as CalendarIcon,
   InsertDriveFile as FileIcon,
+  ArrowForward as ArrowForwardIcon,
   Warning as WarningIcon,
-  ManageAccounts as ManageAccountsIcon,
 } from "@mui/icons-material";
-import { canManage } from "../utils/rbac";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import ProfileMenu from "../components/ProfileMenu";
 import logoDanantara from "../assets/logo-danantara.png";
 import logoPelindo from "../assets/logo-pelindo.png";
-import batikOrnament from "../assets/batik 1.png";
+import batikOrnament from "../assets/batik-ornament.png";
 import { programById, type TaskStatus } from "../data/programDetailMock";
+import { canManage } from "../utils/rbac";
+
+type SubtaskDetailData = {
+  id?: number | string;
+  programId?: number | string;
+  stageId?: number | string;
+  title: string;
+  programTitle?: string;
+  stageTitle?: string;
+  start?: string;
+  deadline?: string;
+  statusName: TaskStatus;
+  deliverable?: string;
+  file?: string;
+  actual: number;
+  expected: number;
+  gap: number;
+  overdue?: boolean;
+  overdueCount: number;
+};
+
+type ApiSubtaskDetail = {
+  id?: number;
+  id_subtask?: number;
+  id_stage?: number;
+  name: string;
+  plan_start?: string;
+  plan_finish?: string;
+  deliverable?: string;
+  file?: string;
+  status?: { name?: string };
+  stage?: {
+    id_program?: number;
+    name?: string;
+    program?: { id_program?: number; name?: string };
+  };
+};
+
+type SubtaskLocationState = {
+  from?: string;
+  returnTo?: string;
+  programId?: string | number;
+  stageId?: string | number;
+  programTitle?: string;
+  stageTitle?: string;
+  taskId?: string | number;
+};
+
+const normalizeTaskStatus = (status?: string): TaskStatus => {
+  const upperStatus = (status || "NOT STARTED").toUpperCase();
+  return upperStatus === "DONE" || upperStatus === "ON PROGRESS" || upperStatus === "NOT STARTED"
+    ? upperStatus
+    : "NOT STARTED";
+};
+
+const statusForEdit = (status?: TaskStatus): string => {
+  switch (status) {
+    case "DONE":
+      return "Done";
+    case "ON PROGRESS":
+      return "On Progress";
+    case "NOT STARTED":
+    default:
+      return "Not Started";
+  }
+};
+
+const getAttachmentUrl = (file?: string) => {
+  if (!file) return undefined;
+  if (/^https?:\/\//i.test(file)) return file;
+  return apiUrl(`/uploads/${encodeURIComponent(file)}`);
+};
 
 /* ================= STATUS CHIP STYLES ================= */
 
@@ -87,33 +158,34 @@ const routeToMenuLabel: Record<string, string> = {
 export default function SubtaskDetail() {
   const navigate = useNavigate();
   const location = useLocation();
-  const fromRoute = location.state?.from || "/rkm";
-  const returnTo = location.state?.returnTo || "/tahapan-detail";
-  const programId: any = location.state?.programId;
-  const stageId: any = location.state?.stageId;
-  const taskId: any = location.state?.taskId;
+  const locationState = (location.state || {}) as SubtaskLocationState;
+  const fromRoute = locationState.from || "/rkm";
+  const returnTo = locationState.returnTo || "/tahapan-detail";
+  const programId = locationState.programId;
+  const stageId = locationState.stageId;
+  const taskId = locationState.taskId;
+  const stateProgramTitle = locationState.programTitle;
+  const stateStageTitle = locationState.stageTitle;
 
-  const [subtask, setSubtask] = useState<any>(null);
+  const [subtask, setSubtask] = useState<SubtaskDetailData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchSubtaskDetail();
-  }, [taskId]);
-
-  const fetchSubtaskDetail = async () => {
+  const fetchSubtaskDetail = useCallback(async () => {
     setLoading(true);
     console.log("Fetching subtask with IDs:", { programId, stageId, taskId });
     try {
       if (typeof programId === "string" && (programId.startsWith("rkm-") || programId.startsWith("nonrkm-"))) {
         const prog = programById(programId);
         const section = prog?.sections.find(s => String(s.id) === String(stageId));
-        const task = section?.tasks.find((t: any) => String(t.id) === String(taskId));
+        const task = section?.tasks.find((t) => String(t.id) === String(taskId));
         
         if (task) {
             const actual = task.status === "DONE" ? 100 : task.status === "ON PROGRESS" ? 50 : 0;
             const expected = 50; // Mock
             setSubtask({
                 ...task,
+                programId,
+                stageId,
                 programTitle: prog?.title,
                 stageTitle: section?.title,
                 start: task.dateRange?.split(" - ")[0] || "-",
@@ -128,21 +200,24 @@ export default function SubtaskDetail() {
             console.warn("Subtask not found in mock data", { programId, stageId, taskId });
         }
       } else if (taskId) {
-        const response = await fetch(`http://localhost:8000/api/subtasks/${taskId}`);
+        const response = await fetch(apiUrl(`/api/subtasks/${taskId}`));
         if (!response.ok) throw new Error("Failed to fetch subtask from API");
-        const data = await response.json();
+        const data = await response.json() as ApiSubtaskDetail;
         
         const actual = data.status?.name === "DONE" ? 100 : data.status?.name === "ON PROGRESS" ? 50 : 0;
         const expected = 50; // Mock
 
         setSubtask({
           ...data,
+          id: data.id_subtask || data.id,
+          programId: data.stage?.program?.id_program || data.stage?.id_program || programId,
+          stageId: data.id_stage || stageId,
           title: data.name,
-          programTitle: data.stage?.program?.name || "-",
-          stageTitle: data.stage?.name || "-",
+          programTitle: stateProgramTitle || data.stage?.program?.name || "-",
+          stageTitle: stateStageTitle || data.stage?.name || "-",
           start: data.plan_start,
           deadline: data.plan_finish,
-          statusName: (data.status?.name || "NOT STARTED").toUpperCase(),
+          statusName: normalizeTaskStatus(data.status?.name),
           deliverable: data.deliverable,
           file: data.file,
           actual,
@@ -158,12 +233,18 @@ export default function SubtaskDetail() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [programId, stageId, stateProgramTitle, stateStageTitle, taskId]);
+
+  useEffect(() => {
+    fetchSubtaskDetail();
+  }, [fetchSubtaskDetail]);
 
   const [profileAnchor, setProfileAnchor] = useState<HTMLElement | null>(null);
   const [activeMenu, setActiveMenu] = useState(
     routeToMenuLabel[fromRoute] ?? "RKM / Program"
   );
+  const resolvedProgramId = subtask?.programId ?? programId;
+  const resolvedStageId = subtask?.stageId ?? stageId;
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "#F7F9FB" }}>
@@ -193,32 +274,26 @@ export default function SubtaskDetail() {
         </Box>
 
         <Box sx={{ px: -2 }}>
-          {(() => {
-            const menus = [
-              { icon: DashboardIcon, label: "Dashboard" },
-              { icon: Assessment, label: "RKM / Program" },
-              { icon: ContentPaste, label: "Non RKM" },
-              { icon: TrendingUp, label: "Weekly Monitoring" },
-            ];
-            if (canManage()) {
-              menus.push({ icon: ManageAccountsIcon, label: "Kelola Akun" });
-            }
-            return menus.map((item) => (
-              <Button
-                key={item.label}
-                startIcon={<item.icon sx={{ fontSize: "1.4rem" }} />}
-                onClick={() => {
-                  setActiveMenu(item.label);
-                  const routeMap: Record<string, string> = {
-                    "Dashboard": "/dashboard",
-                    "RKM / Program": "/rkm",
-                    "Non RKM": "/non-rkm",
-                    "Weekly Monitoring": "/weekly-monitoring",
-                    "Kelola Akun": "/manage-users"
-                  };
-                  const route = routeMap[item.label];
-                  if (route) navigate(route);
-                }}
+          {[
+            { icon: DashboardIcon,  label: "Dashboard" },
+            { icon: Assessment,     label: "RKM / Program" },
+            { icon: ContentPaste,   label: "Non RKM" },
+            { icon: TrendingUp,     label: "Weekly Monitoring" },
+          ].map((item) => (
+            <Button
+              key={item.label}
+              startIcon={<item.icon sx={{ fontSize: "1.4rem" }} />}
+              onClick={() => {
+                setActiveMenu(item.label);
+                const routeMap: Record<string, string> = {
+                  Dashboard: "/dashboard",
+                  "RKM / Program": "/rkm",
+                  "Non RKM": "/non-rkm",
+                  "Weekly Monitoring": "/weekly-monitoring",
+                };
+                const route = routeMap[item.label];
+                if (route) navigate(route);
+              }}
               sx={{
                 color: "white",
                 justifyContent: "flex-start",
@@ -246,7 +321,7 @@ export default function SubtaskDetail() {
             >
               {item.label}
             </Button>
-          ))})()}
+          ))}
         </Box>
 
         <Box sx={{ marginTop: "auto", marginLeft: "-24px", width: "111%", height: "auto", display: "flex", flexDirection: "column", justifyContent: "flex-end", overflow: "hidden" }}>
@@ -291,7 +366,7 @@ export default function SubtaskDetail() {
           {/* BACK BUTTON */}
           <Button
             startIcon={<ArrowBackIcon />}
-            onClick={() => navigate(returnTo, { state: { from: fromRoute, programId, stageId } })}
+            onClick={() => navigate(returnTo, { state: { from: fromRoute, programId: resolvedProgramId, stageId: resolvedStageId } })}
             sx={{
               mb: 2,
               color: "#64748B",
@@ -327,108 +402,96 @@ export default function SubtaskDetail() {
                 border: "1px solid #E8ECF4",
               }}
             >
-              <CardContent sx={{ p: 4, pb: "32px !important" }}>
-                {/* Breadcrumb style titles */}
-                <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", mb: 2 }}>
+              <CardContent sx={{ p: 3, pb: "20px !important" }}>
+                {/* Title row */}
+                <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", mb: 1.5 }}>
                   <Box>
-                      <Typography fontSize="0.82rem" color="#64748B" fontWeight={600} mb={0.2}>
-                          {subtask.programTitle}
-                      </Typography>
-                      <Typography fontSize="0.85rem" color="#267ABD" fontWeight={700} mb={0.8}>
-                          Tahapan: {subtask.stageTitle}
-                      </Typography>
-                      <Typography fontWeight={700} fontSize="1.3rem" sx={{ color: "#0F172A", lineHeight: 1.2 }}>
-                          Subtask: {subtask.title}
-                      </Typography>
+                    <Typography fontSize="0.82rem" color="#64748B" fontWeight={600} mb={0.2}>
+                      {subtask.programTitle}
+                    </Typography>
+                    <Typography fontSize="0.82rem" color="#267ABD" fontWeight={700} mb={0.5}>
+                      Tahapan: {subtask.stageTitle}
+                    </Typography>
+                    <Typography fontWeight={700} fontSize="1.15rem" sx={{ color: "#0F172A", flex: 1 }}>
+                      Subtask: {subtask.title}
+                    </Typography>
                   </Box>
+                  {canManage() && (
+                    <ActionBtn
+                      label="Edit Subtask"
+                      color="#F97316"
+                      onClick={() => navigate("/pic-edit-subtask", {
+                        state: {
+                          from: fromRoute,
+                          returnTo: "/subtask-detail",
+                          programId: resolvedProgramId,
+                          stageId: resolvedStageId,
+                          taskId: subtask.id,
+                          namaSubtask: subtask.title,
+                          deliverable: subtask.deliverable,
+                          status: statusForEdit(subtask.statusName),
+                          planStart: subtask.start,
+                          planEnd: subtask.deadline,
+                          fileName: subtask.file ?? null,
+                          programTitle: subtask.programTitle,
+                          stageTitle: subtask.stageTitle,
+                        }
+                      })}
+                    />
+                  )}
                 </Box>
 
                 {/* Status Chips */}
-                <Box sx={{ display: "flex", gap: 1, mb: 3 }}>
+                <Box sx={{ display: "flex", gap: 1, mb: 2 }}>
                   <Chip
                     label={subtask.statusName}
                     size="small"
-                    sx={{ ...getStatusStyle(subtask.statusName), fontWeight: 700, fontSize: "0.75rem", borderRadius: "6px", height: 26, px: 1 }}
+                    sx={{ ...getStatusStyle(subtask.statusName), fontWeight: 700, fontSize: "0.72rem", borderRadius: "6px", height: 24, px: 1 }}
                   />
                   {subtask.overdue && (
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.4, bgcolor: "#FEF2F2", color: "#DC2626", border: "1px solid #FECACA", borderRadius: "6px", px: 1, height: 26 }}>
-                        <WarningIcon sx={{ fontSize: "0.9rem" }} />
-                        <Typography fontSize="0.75rem" fontWeight={700}>OVERDUE</Typography>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.4, bgcolor: "#FEF2F2", color: "#DC2626", border: "1px solid #FECACA", borderRadius: "6px", px: 1, height: 24 }}>
+                      <WarningIcon sx={{ fontSize: "0.8rem" }} />
+                      <Typography fontSize="0.72rem" fontWeight={700}>OVERDUE</Typography>
                     </Box>
                   )}
                 </Box>
 
-                {/* Meta info Grid */}
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, mb: 3 }}>
-                  <Box>
-                    <Typography fontSize="0.85rem" color="#64748B" fontWeight={600} mb={0.5}>Deliverable :</Typography>
-                    <Typography fontSize="0.95rem" color="#0F172A" fontWeight={500}>{subtask.deliverable || "-"}</Typography>
+                {/* Meta info */}
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 0.6, mb: 2 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                    <Typography fontSize="0.82rem" color="#64748B">Deliverable :</Typography>
+                    <Typography fontSize="0.82rem" color="#0F172A" fontWeight={500}>{subtask.deliverable || "-"}</Typography>
                   </Box>
 
-                  <Box sx={{ display: "flex", gap: 6 }}>
-                      <Box>
-                          <Typography fontSize="0.85rem" color="#64748B" fontWeight={600} mb={0.5}>Plan Start :</Typography>
-                          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                              <CalendarIcon sx={{ fontSize: "1.1rem", color: "#2563EB" }} />
-                              <Typography fontSize="0.95rem" color="#0F172A" fontWeight={700}>{subtask.start}</Typography>
-                          </Box>
-                      </Box>
-                      <Box>
-                          <Typography fontSize="0.85rem" color="#64748B" fontWeight={600} mb={0.5}>Plan Finish :</Typography>
-                          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                              <CalendarIcon sx={{ fontSize: "1.1rem", color: "#E9004A" }} />
-                              <Typography fontSize="0.95rem" color="#0F172A" fontWeight={700}>{subtask.deadline}</Typography>
-                          </Box>
-                      </Box>
-                  </Box>
-
-                  <Box>
-                    <Typography fontSize="0.85rem" color="#64748B" fontWeight={600} mb={1}>Attachment / File :</Typography>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "wrap" }}>
+                    <Typography fontSize="0.82rem" color="#64748B">Attachment :</Typography>
                     {subtask.file ? (
                       <Box
-                          component="a"
-                          href="#"
-                          sx={{ 
-                              display: "inline-flex", 
-                              alignItems: "center", 
-                              gap: 1, 
-                              bgcolor: "#EFF6FF", 
-                              p: 1.5, 
-                              borderRadius: 2, 
-                              textDecoration: "none",
-                              border: "1px solid #BFDBFE",
-                              "&:hover": { bgcolor: "#DBEAFE" }
-                          }}
+                        component="a"
+                        href={getAttachmentUrl(subtask.file)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        sx={{ display: "flex", alignItems: "center", gap: 0.5, textDecoration: "none", "&:hover span": { textDecoration: "underline" } }}
                       >
-                          <FileIcon sx={{ color: "#2563EB" }} />
-                          <Typography fontSize="0.9rem" color="#2563EB" fontWeight={600}>{subtask.file}</Typography>
+                        <FileIcon sx={{ fontSize: "0.85rem", color: "#2563EB" }} />
+                        <Box component="span" sx={{ fontSize: "0.8rem", color: "#2563EB", cursor: "pointer", textDecoration: "underline", textDecorationColor: "rgba(37,99,235,0.4)", textUnderlineOffset: "2px", fontWeight: 500 }}>
+                          {subtask.file}
+                        </Box>
                       </Box>
                     ) : (
-                      <Typography fontSize="0.9rem" color="#94A3B8" fontStyle="italic">No file attached</Typography>
+                      <Typography fontSize="0.82rem" color="#94A3B8" fontStyle="italic">No file attached</Typography>
                     )}
                   </Box>
                 </Box>
 
-                <Box sx={{ mt: 4 }} />
-
-                <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 2 }}>
-                    <Button
-                      variant="outlined"
-                      onClick={() => navigate(returnTo, { state: { from: fromRoute, programId, stageId } })}
-                      sx={{
-                          textTransform: "none",
-                          fontWeight: 700,
-                          borderRadius: 2,
-                          px: 3,
-                          borderColor: "#E2E8F0",
-                          color: "#64748B",
-                          "&:hover": { borderColor: "#CBD5E1", bgcolor: "#F8FAFC" }
-                      }}
-                    >
-                      Tutup
-                    </Button>
+                {/* Date row */}
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <Typography fontSize="0.82rem" color="#64748B">Start :</Typography>
+                  <Typography fontSize="0.82rem" color="#0F172A" fontWeight={600}>{subtask.start}</Typography>
+                  <ArrowForwardIcon sx={{ fontSize: "0.9rem", color: "#94A3B8" }} />
+                  <Typography fontSize="0.82rem" color="#64748B">Deadline :</Typography>
+                  <Typography fontSize="0.82rem" color="#0F172A" fontWeight={600}>{subtask.deadline}</Typography>
                 </Box>
-
               </CardContent>
             </Card>
           )}

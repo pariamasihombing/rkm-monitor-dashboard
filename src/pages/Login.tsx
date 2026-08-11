@@ -27,6 +27,7 @@ export default function Login() {
       name: string;
       role: string;
       status?: string;
+      lastLogin?: string;
     }> = [];
     try {
       const stored = localStorage.getItem("manageUsersData");
@@ -65,6 +66,12 @@ export default function Login() {
       localStorage.setItem("isLoggedIn", "true");
       localStorage.setItem("userRole", normalizedRole);
       localStorage.setItem("userName", name);
+
+      // 5. Update lastLogin for the matched user
+      if (match) {
+        match.lastLogin = new Date().toISOString();
+        localStorage.setItem("manageUsersData", JSON.stringify(managedUsers));
+      }
 
       navigate("/dashboard");
     } else {

@@ -17,7 +17,7 @@ class ProgramController extends Controller
     public function index(Request $request)
     {
         // Build base query with eager loading
-        $query = Program::with(['status', 'pics', 'stages.subtasks']);
+        $query = Program::with(['status', 'pics', 'stages.status', 'stages.subtasks.status']);
 
         // === A. Filter Database (sebelum ->get()) ===
 

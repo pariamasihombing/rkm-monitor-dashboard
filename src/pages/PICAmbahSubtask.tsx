@@ -1,3 +1,4 @@
+import { apiUrl } from "../utils/api";
 import {
   Box,
   Button,
@@ -20,7 +21,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import ProfileMenu from "../components/ProfileMenu";
 import logoDanantara from "../assets/logo-danantara.png";
 import logoPelindo from "../assets/logo-pelindo.png";
-import batikOrnament from "../assets/batik 1.png";
+import batikOrnament from "../assets/batik-ornament.png";
 
 /* ================= DATA ================= */
 
@@ -60,7 +61,9 @@ export default function PICAmbahSubtask() {
   const fromRoute = location.state?.from || "/pic-rkm";
   const returnTo = location.state?.returnTo;
   const programId = location.state?.programId;
-  const sectionId = location.state?.sectionId;
+  const sectionId = location.state?.sectionId ?? location.state?.stageId;
+  const programTitle = location.state?.programTitle;
+  const stageTitle = location.state?.stageTitle;
 
   // Form state
   const [namaSubtask, setNamaSubtask] = useState("");
@@ -80,6 +83,15 @@ export default function PICAmbahSubtask() {
         : "RKM / Program"
   );
   const [profileAnchor, setProfileAnchor] = useState<HTMLElement | null>(null);
+
+  const returnState = {
+    from: fromRoute,
+    programId,
+    stageId: sectionId,
+    sectionId,
+    programTitle,
+    stageTitle,
+  };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -115,14 +127,14 @@ export default function PICAmbahSubtask() {
     }
 
     try {
-      const response = await fetch("http://localhost:8000/api/subtasks", {
+      const response = await fetch(apiUrl("/api/subtasks"), {
         method: "POST",
         body: formData,
       });
 
       if (response.ok) {
         navigate(returnTo || "/pic-program-detail", {
-          state: { from: fromRoute, programId },
+          state: returnState,
         });
       } else {
         try {
@@ -163,7 +175,7 @@ export default function PICAmbahSubtask() {
 
   const handleBatal = () =>
     navigate(returnTo || "/pic-program-detail", {
-      state: { from: fromRoute, programId },
+      state: returnState,
     });
 
   return (

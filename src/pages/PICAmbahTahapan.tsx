@@ -1,3 +1,4 @@
+import { apiUrl } from "../utils/api";
 import {
   Box,
   Button,
@@ -19,7 +20,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import ProfileMenu from "../components/ProfileMenu";
 import logoDanantara from "../assets/logo-danantara.png";
 import logoPelindo from "../assets/logo-pelindo.png";
-import batikOrnament from "../assets/batik 1.png";
+import batikOrnament from "../assets/batik-ornament.png";
 
 /* ================= DATA ================= */
 
@@ -63,6 +64,7 @@ export default function PICAmbahTahapan() {
   // Form state
   const [namaTahapan, setNamaTahapan] = useState("");
   const [deliverable, setDeliverable] = useState("");
+  // Status dikelola otomatis oleh sistem berdasarkan subtask
   const [status, setStatus] = useState("");
   const [planStart, setPlanStart] = useState("");
   const [planEnd, setPlanEnd] = useState("");
@@ -103,7 +105,7 @@ export default function PICAmbahTahapan() {
     };
 
     try {
-      const response = await fetch("http://localhost:8000/api/stages", {
+      const response = await fetch(apiUrl("/api/stages"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

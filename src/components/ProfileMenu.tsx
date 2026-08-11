@@ -8,7 +8,6 @@ import {
 import {
   Logout as LogoutIcon,
   Settings as SettingsIcon,
-  AccountCircle as AccountCircleIcon,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { Divider, ListItemIcon } from "@mui/material";

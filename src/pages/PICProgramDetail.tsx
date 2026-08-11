@@ -1,3 +1,4 @@
+import { apiUrl } from "../utils/api";
 import {
   Box,
   Card,
@@ -27,7 +28,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import ProfileMenu from "../components/ProfileMenu";
 import logoDanantara from "../assets/logo-danantara.png";
 import logoPelindo from "../assets/logo-pelindo.png";
-import batikOrnament from "../assets/batik 1.png";
+import batikOrnament from "../assets/batik-ornament.png";
 import { programById, rkmPrograms } from "../data/programDetailMock";
 
 /* ================= STATUS CHIP STYLES ================= */
@@ -124,7 +125,10 @@ export default function PICProgramDetail() {
 
   useEffect(() => {
     fetchProgramDetail();
-  }, [programId]);
+  // location.key berubah setiap kali navigate() dipanggil, memastikan
+  // data selalu di-fetch ulang saat user kembali dari halaman lain.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [programId, location.key]);
 
   const fetchProgramDetail = async () => {
     setLoading(true);
@@ -137,7 +141,7 @@ export default function PICProgramDetail() {
           setOpenSections({ [mock.sections[0].id]: true });
         }
       } else if (programId) {
-        const response = await fetch(`http://localhost:8000/api/programs/${programId}`);
+        const response = await fetch(apiUrl(`/api/programs/${programId}`));
         const data = await response.json();
         
         // Normalize backend data to match UI expectations
@@ -166,6 +170,7 @@ export default function PICProgramDetail() {
             status: s.status,
             start: s.plan_start,
             deadline: s.plan_finish,
+            actual: s.actual_progress ?? 0,
             tasks: s.subtasks?.map((t: any) => {
               const actual = t.status?.name === "DONE" ? 100 : t.status?.name === "ON PROGRESS" ? 50 : 0;
               const expected = 50;
@@ -200,20 +205,15 @@ export default function PICProgramDetail() {
           });
         }
       } else {
-        // Fallback
-        const mock = rkmPrograms[0];
-        setProgram(mock);
-        if (mock.sections && mock.sections.length > 0) {
-          setOpenSections({ [mock.sections[0].id]: true });
-        }
+        // Tidak ada programId yang valid — navigasi kembali
+        console.warn("[PICProgramDetail] Tidak ada programId yang valid.");
+        navigate(fromRoute, { replace: true });
+        return;
       }
     } catch (error) {
       console.error("Error fetching program detail:", error);
-      const mock = rkmPrograms[0];
-      setProgram(mock);
-      if (mock.sections && mock.sections.length > 0) {
-        setOpenSections({ [mock.sections[0].id]: true });
-      }
+      // Jangan fallback ke mock data — tampilkan null agar user tahu ada masalah
+      setProgram(null);
     } finally {
       setLoading(false);
     }
@@ -223,7 +223,7 @@ export default function PICProgramDetail() {
     if (!window.confirm("Apakah Anda yakin ingin menghapus tahapan ini? Semua subtask di dalamnya juga akan terhapus.")) return;
     
     try {
-      const response = await fetch(`http://localhost:8000/api/stages/${sectionId}`, {
+      const response = await fetch(apiUrl(`/api/stages/${sectionId}`), {
         method: "DELETE",
       });
       if (response.ok) {
@@ -241,7 +241,7 @@ export default function PICProgramDetail() {
     if (!window.confirm("Apakah Anda yakin ingin menghapus subtask ini?")) return;
 
     try {
-      const response = await fetch(`http://localhost:8000/api/subtasks/${taskId}`, {
+      const response = await fetch(apiUrl(`/api/subtasks/${taskId}`), {
         method: "DELETE",
       });
       if (response.ok) {
@@ -610,7 +610,7 @@ export default function PICProgramDetail() {
                         {/* Progress indicator */}
                         <Box sx={{ display: "flex", alignItems: "center", gap: 0.3, ml: 0.5 }}>
                           <Typography fontSize="0.82rem" fontWeight={700} color="#2563EB">
-                            {section.tasks.length > 0 ? Math.round((section.tasks.filter((t: any) => t.status === "DONE").length / section.tasks.length) * 100) : 0}%
+                            {section.actual ?? 0}%
                           </Typography>
                           <TrendingUpIcon sx={{ fontSize: "0.9rem", color: "#2563EB" }} />
                         </Box>
@@ -691,7 +691,7 @@ export default function PICProgramDetail() {
                                         {task.file && (
                                           <Box
                                             component="a"
-                                            href={`http://localhost:8000/uploads/${task.file}`}
+                                            href={apiUrl(`/uploads/${task.file}`)}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             sx={{ display: "flex", alignItems: "center", gap: 0.5, textDecoration: "none", "&:hover span": { textDecoration: "underline" } }}

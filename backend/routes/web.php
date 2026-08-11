@@ -18,6 +18,7 @@ $router->get('/', function () use ($router) {
 });
 
 $router->get('/api/dashboard', 'DashboardController@index');
+$router->post('/api/reminders/send', 'NotificationController@sendReminders');
 $router->get('/api/weekly-monitoring', 'WeeklyMonitoringController@index');
 $router->get('/api/users', function () {
     return response()->json([

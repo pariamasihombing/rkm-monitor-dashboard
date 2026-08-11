@@ -26,12 +26,34 @@ class Program extends Model
         foreach ($this->stages as $stage) {
             foreach ($stage->subtasks as $subtask) {
                 $totalSubtasks++;
-                $totalProgress += $subtask->actual_progress;
+                $statusName = strtoupper(optional($subtask->status)->name ?? '');
+                $statusId = (int) ($subtask->id_status ?? 0);
+                $storedActual = (float) ($subtask->actual_progress ?? 0);
+
+                if ($statusId === 3 || $statusName === 'DONE') {
+                    $totalProgress += 100;
+                } elseif ($statusId === 2 || $statusName === 'ON PROGRESS') {
+                    $totalProgress += $storedActual > 0 ? $storedActual : 50;
+                } else {
+                    $totalProgress += $storedActual;
+                }
             }
         }
 
         if ($totalSubtasks === 0) {
-            return 0;
+            $statusName = strtoupper(optional($this->status)->name ?? '');
+            $statusId = (int) ($this->id_status ?? 0);
+            $storedActual = (float) ($this->actual_progress ?? 0);
+
+            if ($statusId === 3 || $statusName === 'DONE') {
+                return 100;
+            }
+
+            if ($statusId === 2 || $statusName === 'ON PROGRESS') {
+                return round($storedActual > 0 ? $storedActual : 50);
+            }
+
+            return round($storedActual);
         }
 
         return round($totalProgress / $totalSubtasks);

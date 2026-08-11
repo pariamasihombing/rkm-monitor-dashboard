@@ -1,3 +1,4 @@
+import { apiUrl } from "../utils/api";
 import {
   Box,
   Button,
@@ -20,7 +21,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import ProfileMenu from "../components/ProfileMenu";
 import logoDanantara from "../assets/logo-danantara.png";
 import logoPelindo from "../assets/logo-pelindo.png";
-import batikOrnament from "../assets/batik 1.png";
+import batikOrnament from "../assets/batik-ornament.png";
 
 /* ================= DATA ================= */
 
@@ -31,13 +32,6 @@ const INITIATIVE_STRATEGY_OPTIONS = [
   "IS-01-Transformasi Digital",
   "IS-02-Pengembangan SDM",
   "IS-03-Ekspansi Pasar",
-];
-
-const STATUS_OPTIONS = [
-  "On Progress",
-  "Done",
-  "Not Started",
-  "Hold",
 ];
 
 const PIC_UTAMA_LIST      = ["Reza", "Hendra", "Raghi", "Suci", "Fero"];
@@ -84,7 +78,7 @@ export default function PICAmbahProgram() {
   const [namaProgram, setNamaProgram] = useState("");
   const [tipeProgram, setTipeProgram] = useState("");
   const [initiativeStrategy, setInitiativeStrategy] = useState("");
-  const [status, setStatus] = useState("");
+  // Status dikelola otomatis oleh sistem berdasarkan subtask
   const [planStart, setPlanStart] = useState("");
   const [planEnd, setPlanEnd] = useState("");
   const [selectedUtama, setSelectedUtama] = useState<string[]>([]);
@@ -111,14 +105,6 @@ export default function PICAmbahProgram() {
   const clearAllPIC   = () => { setSelectedUtama([]); setSelectedSupporting([]); setSelectedSupervisor([]); };
 
   const handleSimpan = async () => {
-    // Mapping status string to id_status based on database
-    const statusMap: Record<string, number> = {
-      "Not Started": 1,
-      "On Progress": 2,
-      "Done": 3,
-      "Hold": 4,
-    };
-
     // Extracting code from initiativeStrategy (e.g., "IS-08-..." -> "IS-08")
     const strategyCode = initiativeStrategy.split("-").slice(0, 2).join("-");
 
@@ -134,14 +120,14 @@ export default function PICAmbahProgram() {
       name: namaProgram,
       type: tipeProgram,
       pic: allPics,
-      id_status: statusMap[status] || 2,
+      id_status: 1, // Default: Not Started — status otomatis dikalkulasi sistem
       code_initiative_strategy: strategyCode,
       plan_start: planStart,
       plan_finish: planEnd,
     };
 
     try {
-      const response = await fetch("http://localhost:8000/api/programs", {
+      const response = await fetch(apiUrl("/api/programs"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -425,26 +411,7 @@ export default function PICAmbahProgram() {
                   </TextField>
                 </Box>
 
-                {/* Status — col 1 */}
-                <Box>
-                  <Typography fontSize="0.85rem" fontWeight={600} sx={{ color: "#1E293B", mb: 0.6 }}>
-                    Status<span style={{ color: "#E9004A" }}>*</span>
-                  </Typography>
-                  <TextField
-                    select
-                    fullWidth
-                    size="small"
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value)}
-                    sx={fieldSx}
-                    SelectProps={{ displayEmpty: true }}
-                  >
-                    <MenuItem value="" disabled>Pilih Status...</MenuItem>
-                    {STATUS_OPTIONS.map((opt) => (
-                      <MenuItem key={opt} value={opt}>{opt}</MenuItem>
-                    ))}
-                  </TextField>
-                </Box>
+                {/* Status dihilangkan — otomatis dikalkulasi dari subtask */}
 
                 {/* Plan Start — col 2 */}
                 <Box>

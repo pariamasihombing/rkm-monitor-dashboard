@@ -1,3 +1,4 @@
+import { apiUrl } from "../utils/api";
 import {
   Box,
   Card,
@@ -23,12 +24,13 @@ import {
   ManageAccounts as ManageAccountsIcon,
 } from "@mui/icons-material";
 import { useState, useEffect } from "react";
+import { sendReminders } from "../utils/notificationService";
 import { useNavigate } from "react-router-dom";
 import ProfileMenu from "../components/ProfileMenu";
 import { statuses } from "../data/dashboardMock";
 import logoDanantara from "../assets/logo-danantara.png";
 import logoPelindo from "../assets/logo-pelindo.png";
-import batikOrnament from "../assets/batik 1.png";
+import batikOrnament from "../assets/batik-ornament.png";
 import { canManage } from "../utils/rbac";
 
 import {
@@ -77,33 +79,6 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     );
   }
   return null;
-};
-
-const renderPieLabel = (props: any) => {
-  const { cx, cy, midAngle, innerRadius, outerRadius, value } = props;
-  const RADIAN = Math.PI / 180;
-  const radius = innerRadius + (outerRadius - innerRadius) / 2;
-  const x = cx + radius * Math.cos(-midAngle * RADIAN);
-  const y = cy + radius * Math.sin(-midAngle * RADIAN);
-
-  return (
-    <g>
-      {/* Subtle background glow */}
-      <circle cx={x} cy={y} r="20" fill="#FFFFFF" opacity="0.15" />
-      <text
-        x={x}
-        y={y}
-        fill="#1E293B"
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontSize="14"
-        fontWeight="700"
-        letterSpacing="0.5"
-      >
-        {value}
-      </text>
-    </g>
-  );
 };
 
 /* ================= DEFAULT STATE ================= */
@@ -165,13 +140,48 @@ export default function PICDashboard() {
       if (selectedDate) params.append("date", selectedDate);
       if (searchQuery) params.append("search", searchQuery);
 
-      fetch(`http://localhost:8000/api/dashboard?${params.toString()}`)
+      fetch(apiUrl(`/api/dashboard?${params.toString()}`))
         .then((r) => r.json())
         .then((data) => setDashData(data))
         .catch(() => setDashData(defaultDashboard));
     }, 400);
     return () => clearTimeout(delay);
   }, [selectedStatus, selectedAlarm, selectedPIC, selectedDate, searchQuery]);
+
+  // === PENGIRIMAN EMAIL OTOMATIS (SATU KALI PER HARI) ===
+  useEffect(() => {
+    // Cek apakah email sudah dikirim hari ini (cooldown harian)
+    const today = new Date().toISOString().split("T")[0]; // format: "2026-07-13"
+    const lastSentDate = localStorage.getItem("reminder_last_sent");
+
+    if (lastSentDate === today) {
+      console.log("[EMAIL] Reminder sudah dikirim hari ini, skip.");
+      return;
+    }
+
+    // Tunda 2 detik agar tidak bersaing dengan fetch data dashboard di mount
+    const timer = setTimeout(() => {
+      console.log("Menjalankan sistem pengecekan program Overdue secara otomatis...");
+
+      // Ambil data terbaru langsung dari backend (sudah ada field 'pic' dari database)
+      fetch(apiUrl("/api/dashboard"))
+        .then((r) => r.json())
+        .then((data) => {
+          const alerts: any[] = data.alerts || [];
+          // alerts sudah berisi program yang OVERDUE, DUE_SOON, BEHIND_EXPECTED
+          // serta field 'pic' berisi nama PIC yang akan di-lookup di kamus email
+          sendReminders(alerts).then((count) => {
+            if (count > 0) {
+              localStorage.setItem("reminder_last_sent", today);
+              console.log(`[EMAIL] ${count} reminder berhasil dikirim. Cooldown aktif hingga tengah malam.`);
+            }
+          });
+        })
+        .catch((e) => console.error("[EMAIL] Gagal mengambil data dari backend:", e));
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   // === FUNGSI HANDLER HAPUS ===
   const handleDeleteAlert = async (id: number) => {
@@ -180,7 +190,7 @@ export default function PICDashboard() {
 
     try {
       // (Opsional) Lakukan request DELETE ke backend di sini jika API sudah siap
-      // await fetch(`http://localhost:8000/api/programs/${id}`, { method: 'DELETE' });
+      // await fetch(apiUrl(`/api/programs/${id}`), { method: 'DELETE' });
 
       // Menghapus data dari UI secara instan tanpa perlu refresh
       setDashData((prev) => ({
@@ -328,7 +338,7 @@ export default function PICDashboard() {
         <Box id="dashboard-content" sx={{ p: 4, maxWidth: 1200, mx: "auto", pb: 6 }}>
           {/* FILTER */}
           <Card sx={{ mb: 3, boxShadow: "0 2px 12px rgba(21,101,192,0.04)", bgcolor: "#FFFFFF" }}>
-            <CardContent sx={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 3, pt: 3, pb: 4, px: 4 }}>
+            <CardContent sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(5, 1fr)" }, gap: 3, width: "100%", pt: 3, pb: 4, px: 4 }}>
               {/* Status */}
               <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
                 <Typography variant="caption" sx={{ display: "block", mb: 0.5, fontWeight: 600, fontSize: "0.85rem", color: "#727989" }}>
@@ -432,9 +442,11 @@ export default function PICDashboard() {
           </Box>
 
           {/* ================= CHARTS ================= */}
-          <Typography fontSize="1.05rem" fontWeight={700} mb={4} px={4}>
-            Grafik & Analisis
-          </Typography>
+          <Box sx={{ mb: 2, px: 4 }}>
+            <Typography fontSize="1.05rem" fontWeight={700}>
+              Grafik & Analisis
+            </Typography>
+          </Box>
 
           <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2.5, mb: 3 }}>
             {/* AREA CHART */}
@@ -463,15 +475,15 @@ export default function PICDashboard() {
                         Expected: dashData.chartData.trendChart.expected[i] ?? 0,
                         Actual: dashData.chartData.trendChart.actual[i] ?? 0,
                       }))}
-                      margin={{ right: 20, left: -10, bottom: 5, top: 30 }}
+                      margin={{ right: 30, left: -10, bottom: 24, top: 40 }}
                     >
                       <defs>
                         <linearGradient id="gradActual" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#10B981" stopOpacity={0.25} />
+                          <stop offset="0%" stopColor="#10B981" stopOpacity={0.2} />
                           <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
                         </linearGradient>
                         <linearGradient id="gradExpected" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.18} />
+                          <stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.15} />
                           <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0} />
                         </linearGradient>
                       </defs>
@@ -481,7 +493,7 @@ export default function PICDashboard() {
                         axisLine={false}
                         tickLine={false}
                         tick={{ fontSize: 12, fill: "#94A3B8", fontWeight: 500 }}
-                        dy={8}
+                        dy={18}
                       />
                       <YAxis
                         axisLine={false}
@@ -490,6 +502,7 @@ export default function PICDashboard() {
                         dx={-5}
                       />
                       <Tooltip content={<CustomTooltip />} cursor={{ stroke: "#CBD5E1", strokeDasharray: "4 4" }} />
+                      {/* Expected rendered first (below), Actual on top */}
                       <Area
                         type="monotone"
                         dataKey="Expected"
@@ -498,13 +511,11 @@ export default function PICDashboard() {
                         fill="url(#gradExpected)"
                         dot={{ r: 5, fill: "#8B5CF6", stroke: "#FFFFFF", strokeWidth: 2.5 }}
                         activeDot={{ r: 7, fill: "#8B5CF6", stroke: "#FFFFFF", strokeWidth: 3 }}
-                        label={{
-                          position: "top",
-                          fill: "#1E293B",
-                          fontSize: 13,
-                          fontWeight: 700,
-                          offset: 15,
-                        }}
+                        label={({ x, y, value }: any) => (
+                          <text x={x} y={y - 12} textAnchor="middle" fill="#64748B" fontSize={11} fontWeight={600}>
+                            {value}
+                          </text>
+                        )}
                       />
                       <Area
                         type="monotone"
@@ -514,13 +525,11 @@ export default function PICDashboard() {
                         fill="url(#gradActual)"
                         dot={{ r: 5, fill: "#10B981", stroke: "#FFFFFF", strokeWidth: 2.5 }}
                         activeDot={{ r: 7, fill: "#10B981", stroke: "#FFFFFF", strokeWidth: 3 }}
-                        label={{
-                          position: "bottom",
-                          fill: "#1E293B",
-                          fontSize: 13,
-                          fontWeight: 700,
-                          offset: 15,
-                        }}
+                        label={({ x, y, value }: any) => (
+                          <text x={x} y={y + 20} textAnchor="middle" fill="#1E293B" fontSize={11} fontWeight={700}>
+                            {value}
+                          </text>
+                        )}
                       />
                     </AreaChart>
                   </ResponsiveContainer>
@@ -534,87 +543,93 @@ export default function PICDashboard() {
                 <Typography fontWeight={700} fontSize="1rem" sx={{ color: "#1E293B", px: 1, mb: 1, letterSpacing: "0.3px" }}>
                   Status Breakdown
                 </Typography>
-                <Box sx={{ width: "100%", height: 300, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative" }}>
-                  <ResponsiveContainer width="100%" height={250}>
-                    <PieChart>
-                      <Pie
-                        data={dashData.chartData.statusBreakdown.labels.map((label: string, i: number) => ({
-                          name: label,
-                          value: dashData.chartData.statusBreakdown.values[i] ?? 0,
-                          color: dashData.chartData.statusBreakdown.colors[i] ?? "#ccc",
-                        }))}
-                        innerRadius={68}
-                        outerRadius={105}
-                        dataKey="value"
-                        paddingAngle={3}
-                        strokeWidth={0}
-                        label={renderPieLabel}
-                        labelLine={false}
-                      >
-                        {dashData.chartData.statusBreakdown.labels.map((label: string, i: number) => (
-                          <Cell
-                            key={label}
-                            fill={dashData.chartData.statusBreakdown.colors[i] ?? "#ccc"}
-                            style={{
-                              filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.12))",
-                              transition: "all 0.3s ease"
+                {(() => {
+                  // Use real metric values from dashData (4-category breakdown)
+                  const donutData = [
+                    { name: "On Track",       value: dashData.onTrack,        color: "#4CAF50" },
+                    { name: "Behind Expected",value: dashData.behindExpected,  color: "#2196F3" },
+                    { name: "Due Soon",        value: dashData.dueSoon,         color: "#FF9800" },
+                    { name: "Overdue",         value: dashData.overdue,         color: "#9C27B0" },
+                  ].filter(d => d.value > 0);
+                  const totalPrograms = dashData.totalProgram;
+                  return (
+                    <Box sx={{ width: "100%", height: 300, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative" }}>
+                      <ResponsiveContainer width="100%" height={250}>
+                        <PieChart>
+                          <Pie
+                            data={donutData.length > 0 ? donutData : [{ name: "No Data", value: 1, color: "#E2E8F0" }]}
+                            innerRadius={72}
+                            outerRadius={108}
+                            dataKey="value"
+                            paddingAngle={3}
+                            strokeWidth={0}
+                            labelLine={false}
+                            label={({ cx, cy, midAngle, innerRadius, outerRadius, value }: any) => {
+                              if (donutData.length === 0) return null;
+                              const RADIAN = Math.PI / 180;
+                              const radius = innerRadius + (outerRadius - innerRadius) / 2;
+                              const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                              const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                              return (
+                                <text x={x} y={y} fill="#1E293B" textAnchor="middle" dominantBaseline="central"
+                                  fontSize="13" fontWeight="700">
+                                  {value}
+                                </text>
+                              );
+                            }}
+                          >
+                            {(donutData.length > 0 ? donutData : [{ name: "No Data", value: 1, color: "#E2E8F0" }]).map((entry, i) => (
+                              <Cell key={i} fill={entry.color}
+                                style={{ filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.12))", transition: "all 0.3s ease" }}
+                              />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                const d = payload[0];
+                                return (
+                                  <Box sx={{ bgcolor: "#FFF", border: "1px solid #E8ECF1", borderRadius: "12px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", p: 1.8, minWidth: 140 }}>
+                                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, mb: 0.5 }}>
+                                      <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: d.payload.color }} />
+                                      <Typography fontSize="0.8rem" fontWeight={600} color="#1E293B">{d.name}</Typography>
+                                    </Box>
+                                    <Typography fontSize="0.9rem" fontWeight={700} color="#1E293B">{d.value} program</Typography>
+                                  </Box>
+                                );
+                              }
+                              return null;
                             }}
                           />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        content={({ active, payload }) => {
-                          if (active && payload && payload.length) {
-                            const data = payload[0];
-                            return (
-                              <Box sx={{ bgcolor: "#FFF", border: "1px solid #E8ECF1", borderRadius: "12px", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", p: 1.8, minWidth: 140 }}>
-                                <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, mb: 0.5 }}>
-                                  <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: data.payload.color }} />
-                                  <Typography fontSize="0.8rem" fontWeight={600} color="#1E293B">{data.name}</Typography>
-                                </Box>
-                                <Typography fontSize="0.9rem" fontWeight={700} color="#1E293B">{data.value} items</Typography>
-                              </Box>
-                            );
-                          }
-                          return null;
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  {/* Center Label */}
-                  <Box sx={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", textAlign: "center" }}>
-                    <Typography fontSize="1.8rem" fontWeight={800} color="#1E293B" lineHeight={1} sx={{ letterSpacing: "-1px" }}>
-                      {dashData.chartData.statusBreakdown.values.reduce((a: number, b: number) => a + b, 0)}
-                    </Typography>
-                    <Typography fontSize="0.75rem" fontWeight={600} color="#94A3B8" sx={{ mt: 0.3, letterSpacing: "0.5px" }}>
-                      Total
-                    </Typography>
-                  </Box>
-                </Box>
+                        </PieChart>
+                      </ResponsiveContainer>
+                      {/* Center Label */}
+                      <Box sx={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -60%)", textAlign: "center", pointerEvents: "none" }}>
+                        <Typography fontSize="2rem" fontWeight={800} color="#1E293B" lineHeight={1} sx={{ letterSpacing: "-1px" }}>
+                          {totalPrograms}
+                        </Typography>
+                        <Typography fontSize="0.75rem" fontWeight={600} color="#94A3B8" sx={{ mt: 0.3, letterSpacing: "0.5px" }}>
+                          Total
+                        </Typography>
+                      </Box>
+                    </Box>
+                  );
+                })()}
                 {/* Legend */}
-                <Box sx={{ display: "flex", gap: 2, justifyContent: "center", flexWrap: "wrap", mt: 1 }}>
-                  {dashData.chartData.statusBreakdown.labels.map((label: string, i: number) => (
-                    <Box
-                      key={label}
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 0.8,
-                        px: 1.5,
-                        py: 0.7,
-                        bgcolor: "#F8FAFC",
-                        borderRadius: "10px",
-                        border: "1px solid #EAEEF7",
-                        transition: "all 0.25s ease",
-                        "&:hover": {
-                          bgcolor: "#EFF4FB",
-                          border: "1px solid #D4DFE8",
-                          transform: "translateY(-2px)",
-                          boxShadow: "0 4px 12px rgba(21,101,192,0.08)"
-                        }
-                      }}>
-                      <Box sx={{ width: 10, height: 10, borderRadius: "4px", bgcolor: dashData.chartData.statusBreakdown.colors[i], boxShadow: `0 2px 6px ${dashData.chartData.statusBreakdown.colors[i]}33` }} />
-                      <Typography fontSize="0.8rem" fontWeight={600} color="#64748B" sx={{ letterSpacing: "0.2px" }}>{label}</Typography>
+                <Box sx={{ display: "flex", gap: 1.5, justifyContent: "center", flexWrap: "wrap", mt: 1 }}>
+                  {[
+                    { label: "On Track",        color: "#4CAF50" },
+                    { label: "Behind Expected",  color: "#2196F3" },
+                    { label: "Due Soon",          color: "#FF9800" },
+                    { label: "Overdue",           color: "#9C27B0" },
+                  ].map(({ label, color }) => (
+                    <Box key={label} sx={{ display: "flex", alignItems: "center", gap: 0.8, px: 1.5, py: 0.7,
+                      bgcolor: "#F8FAFC", borderRadius: "10px", border: "1px solid #EAEEF7",
+                      transition: "all 0.25s ease",
+                      "&:hover": { bgcolor: "#EFF4FB", border: "1px solid #D4DFE8", transform: "translateY(-2px)", boxShadow: "0 4px 12px rgba(21,101,192,0.08)" }
+                    }}>
+                      <Box sx={{ width: 10, height: 10, borderRadius: "4px", bgcolor: color, boxShadow: `0 2px 6px ${color}55` }} />
+                      <Typography fontSize="0.78rem" fontWeight={600} color="#64748B" sx={{ letterSpacing: "0.2px" }}>{label}</Typography>
                     </Box>
                   ))}
                 </Box>

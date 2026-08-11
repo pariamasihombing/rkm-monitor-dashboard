@@ -6,6 +6,28 @@ use Carbon\Carbon;
 
 class ProgressService
 {
+    public function getStatusActualProgress($item): float
+    {
+        $storedActual = (float) ($item->actual_progress ?? 0);
+        $statusName = strtoupper(optional($item->status)->name ?? '');
+        $statusId = (int) ($item->id_status ?? 0);
+
+        if ($statusId === 3 || $statusName === 'DONE') {
+            return 100;
+        }
+
+        if ($statusId === 2 || $statusName === 'ON PROGRESS') {
+            return $storedActual > 0 ? $storedActual : 50;
+        }
+
+        return $storedActual;
+    }
+
+    public function getSubtaskActualProgress($subtask): float
+    {
+        return $this->getStatusActualProgress($subtask);
+    }
+
     /**
      * Calculate all metrics for a Program, Stage, or Subtask.
      * 
@@ -20,15 +42,15 @@ class ProgressService
         $planFinish = Carbon::parse($item->plan_finish);
 
         // 1. Expected Progress
-        // Rumus: (Elapsed Time / Total Duration) * 100
-        $totalDuration = $planStart->diffInDays($planFinish);
-        $elapsedTime = $planStart->diffInDays($now, false);
+        // Rumus: (Elapsed Time / Total Duration) * 100 (Inklusif)
+        $totalDuration = $planStart->diffInDays($planFinish) + 1; // Inklusif
 
-        if ($now->lt($planStart)) {
+        if ($now->startOfDay()->lt($planStart->startOfDay())) {
             $expectedProgress = 0;
-        } elseif ($now->gt($planFinish)) {
+        } elseif ($now->startOfDay()->gt($planFinish->startOfDay())) {
             $expectedProgress = 100;
         } else {
+            $elapsedTime = $planStart->diffInDays($now) + 1; // Inklusif
             $expectedProgress = $totalDuration > 0 ? ($elapsedTime / $totalDuration) * 100 : 100;
         }
         $expectedProgress = min(100, max(0, $expectedProgress));
@@ -36,11 +58,7 @@ class ProgressService
         // 2. Actual Progress (Bottom-Up)
         $actualProgress = 0;
         if ($type === 'subtask') {
-            $actualProgress = $item->actual_progress;
-            // Force override jadi 100 jika status_id = 'Done' (ID 3)
-            if ($item->id_status == 3 || (isset($item->status) && $item->status->name === 'Done')) {
-                $actualProgress = 100;
-            }
+            $actualProgress = $this->getSubtaskActualProgress($item);
         } elseif ($type === 'stage') {
             $subtasks = $item->subtasks;
             if ($subtasks && $subtasks->count() > 0) {
@@ -50,6 +68,8 @@ class ProgressService
                     $totalActual += $metrics['actual_progress'];
                 }
                 $actualProgress = $totalActual / $subtasks->count();
+            } else {
+                $actualProgress = $this->getStatusActualProgress($item);
             }
         } elseif ($type === 'program') {
             $stages = $item->stages;
@@ -60,6 +80,8 @@ class ProgressService
                     $totalActual += $metrics['actual_progress'];
                 }
                 $actualProgress = $totalActual / $stages->count();
+            } else {
+                $actualProgress = $this->getStatusActualProgress($item);
             }
         }
 
@@ -145,5 +167,34 @@ class ProgressService
         }
         
         return $expectedLine;
+    }
+
+    /**
+     * Auto-sync id_status for a program or stage based on their actual progress.
+     * Rules:
+     *  - 100% done   → id_status = 3 (Done)
+     *  - >0% and <100% → id_status = 2 (On Progress)
+     *  - 0%          → id_status = 1 (Not Started)
+     *
+     * @param mixed $item Program or Stage model instance
+     * @param string $type 'program' or 'stage'
+     */
+    public function syncStatus($item, string $type): void
+    {
+        $metrics = $this->calculateMetrics($item, $type);
+        $actual  = $metrics['actual_progress'];
+
+        if ($actual >= 100) {
+            $newStatusId = 3; // Done
+        } elseif ($actual > 0) {
+            $newStatusId = 2; // On Progress
+        } else {
+            $newStatusId = 1; // Not Started
+        }
+
+        // Only write to DB if it actually changed (avoid unnecessary writes)
+        if ((int) $item->id_status !== $newStatusId) {
+            $item->update(['id_status' => $newStatusId]);
+        }
     }
 }

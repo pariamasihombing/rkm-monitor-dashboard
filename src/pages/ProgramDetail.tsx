@@ -1,3 +1,4 @@
+import { apiUrl } from "../utils/api";
 import {
   Box,
   Card,
@@ -27,7 +28,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import ProfileMenu from "../components/ProfileMenu";
 import logoDanantara from "../assets/logo-danantara.png";
 import logoPelindo from "../assets/logo-pelindo.png";
-import batikOrnament from "../assets/batik 1.png";
+import batikOrnament from "../assets/batik-ornament.png";
 import { programById, rkmPrograms, type TaskStatus } from "../data/programDetailMock";
 import { canManage } from "../utils/rbac";
 
@@ -137,6 +138,114 @@ const ActionBtn = ({
   </Button>
 );
 
+type ProgramId = string | number;
+
+interface DetailTask {
+  id: ProgramId;
+  title: string;
+  deliverable?: string;
+  dateRange?: string;
+  status: TaskStatus;
+  file?: string | null;
+  overdue?: boolean;
+  actual?: number;
+  expected?: number;
+  gap?: number;
+  indicator?: string;
+}
+
+interface DetailSection {
+  id: ProgramId;
+  title: string;
+  name?: string;
+  deliverable?: string;
+  start?: string;
+  deadline?: string;
+  actual?: number;
+  status?: TaskStatus;
+  notes?: string;
+  tasks: DetailTask[];
+}
+
+interface DetailProgram {
+  id?: ProgramId;
+  title: string;
+  name?: string;
+  status?: { name?: string } | TaskStatus;
+  initiativeStrategy?: string;
+  pic?: string;
+  picUtama?: string;
+  picSupporting?: string;
+  picSupervisor?: string;
+  start?: string;
+  deadline?: string;
+  actual?: number;
+  expected?: number;
+  gap?: number;
+  indicator?: string;
+  overdue?: number;
+  sections?: DetailSection[];
+}
+
+interface ApiStatus {
+  name?: string;
+}
+
+interface ApiSubtask {
+  id_subtask: number;
+  name: string;
+  deliverable?: string;
+  plan_start?: string;
+  plan_finish?: string;
+  status?: ApiStatus;
+  indicator?: string;
+  actual_progress?: number;
+  expected_progress?: number;
+  gap?: number;
+  file?: string | null;
+}
+
+interface ApiStage {
+  id_stage: number;
+  name: string;
+  deliverable?: string;
+  plan_start?: string;
+  plan_finish?: string;
+  notes?: string;
+  actual_progress?: number;
+  status?: ApiStatus;
+  subtasks?: ApiSubtask[];
+}
+
+interface ApiProgram {
+  id_program: number;
+  name: string;
+  pic?: string;
+  code_initiative_strategy?: string;
+  plan_start?: string;
+  plan_finish?: string;
+  actual_progress?: number;
+  overall_progress?: number;
+  expected_progress?: number;
+  gap?: number;
+  indicator?: string;
+  status?: ApiStatus;
+  stages?: ApiStage[];
+}
+
+const normalizeTaskStatus = (status?: string): TaskStatus => {
+  const normalized = (status || "").toUpperCase();
+  if (normalized === "DONE" || normalized === "ON PROGRESS" || normalized === "NOT STARTED") {
+    return normalized;
+  }
+  return "NOT STARTED";
+};
+
+const getProgramStatusLabel = (status?: DetailProgram["status"]) => {
+  if (typeof status === "string") return status;
+  return status?.name || "ON PROGRESS";
+};
+
 /* ================= COMPONENT ================= */
 
 // Map route path → sidebar label
@@ -151,28 +260,31 @@ export default function ProgramDetail() {
   const navigate = useNavigate();
   const location = useLocation();
   const fromRoute = location.state?.from || "/rkm";
-  const programId: any = location.state?.programId;
+  const programId = location.state?.programId as ProgramId | undefined;
 
-  const [program, setProgram] = useState<any>(null);
+  const [program, setProgram] = useState<DetailProgram | null>(null);
   const [loading, setLoading] = useState(true);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     fetchProgramDetail();
-  }, [programId]);
+  // location.key berubah setiap kali navigate() dipanggil, memastikan
+  // data selalu di-fetch ulang saat user kembali dari halaman lain.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [programId, location.key]);
 
   const fetchProgramDetail = async () => {
     setLoading(true);
     try {
       if (typeof programId === "string" && (programId.startsWith("rkm-") || programId.startsWith("nonrkm-"))) {
         const mock = programById(programId) ?? rkmPrograms[0];
-        setProgram(mock);
+        setProgram(mock as DetailProgram);
         if (mock.sections && mock.sections.length > 0) {
-          setOpenSections({ [mock.sections[0].id]: true });
+          setOpenSections({ [String(mock.sections[0].id)]: true });
         }
       } else if (programId) {
-        const response = await fetch(`http://localhost:8000/api/programs/${programId}`);
-        const data = await response.json();
+        const response = await fetch(apiUrl(`/api/programs/${programId}`));
+        const data = await response.json() as ApiProgram;
 
         const picParts = (data.pic || "").split("|").map((s: string) => s.trim());
 
@@ -191,16 +303,23 @@ export default function ProgramDetail() {
           gap: data.gap ?? ((data.actual_progress ?? data.overall_progress ?? 0) - (data.expected_progress ?? 0)),
           indicator: data.indicator || "On Track",
           overdue: data.indicator === "Overdue" ? 1 : 0,
-          sections: data.stages?.map((s: any) => ({
+          sections: data.stages?.map((s) => ({
             id: s.id_stage,
             title: s.name,
+            name: s.name,
+            deliverable: s.deliverable,
+            start: s.plan_start,
+            deadline: s.plan_finish,
             notes: s.notes,
-            tasks: s.subtasks?.map((t: any) => ({
+            actual: s.actual_progress ?? 0,
+            status: normalizeTaskStatus(s.status?.name),
+            tasks: s.subtasks?.map((t) => ({
               id: t.id_subtask,
               title: t.name,
               deliverable: t.deliverable,
               dateRange: `${t.plan_start} - ${t.plan_finish}`,
-              status: (t.status?.name || "NOT STARTED").toUpperCase(),
+              status: normalizeTaskStatus(t.status?.name),
+              file: t.file,
               overdue: t.indicator === "Overdue",
               actual: t.actual_progress ?? 0,
               expected: t.expected_progress ?? 0,
@@ -212,32 +331,28 @@ export default function ProgramDetail() {
 
         setProgram(normalized);
         if (normalized.sections && normalized.sections.length > 0) {
-          setOpenSections({ [normalized.sections[0].id]: true });
+          setOpenSections({ [String(normalized.sections[0].id)]: true });
         }
       } else {
-        const mock = rkmPrograms[0];
-        setProgram(mock);
-        if (mock.sections && mock.sections.length > 0) {
-          setOpenSections({ [mock.sections[0].id]: true });
-        }
+        // Tidak ada programId yang valid — navigasi kembali
+        console.warn("[ProgramDetail] Tidak ada programId yang valid.");
+        navigate(fromRoute, { replace: true });
+        return;
       }
     } catch (error) {
       console.error("Error fetching program detail:", error);
-      const mock = rkmPrograms[0];
-      setProgram(mock);
-      if (mock.sections && mock.sections.length > 0) {
-        setOpenSections({ [mock.sections[0].id]: true });
-      }
+      // Jangan fallback ke mock data — tampilkan null agar user tahu ada masalah
+      setProgram(null);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDeleteSection = async (sectionId: number) => {
+  const handleDeleteSection = async (sectionId: ProgramId) => {
     if (!window.confirm("Apakah Anda yakin ingin menghapus tahapan ini? Semua subtask di dalamnya juga akan terhapus.")) return;
 
     try {
-      const response = await fetch(`http://localhost:8000/api/stages/${sectionId}`, {
+      const response = await fetch(apiUrl(`/api/stages/${sectionId}`), {
         method: "DELETE",
       });
       if (response.ok) {
@@ -251,11 +366,11 @@ export default function ProgramDetail() {
     }
   };
 
-  const handleDeleteTask = async (taskId: number) => {
+  const handleDeleteTask = async (taskId: ProgramId) => {
     if (!window.confirm("Apakah Anda yakin ingin menghapus subtask ini?")) return;
 
     try {
-      const response = await fetch(`http://localhost:8000/api/subtasks/${taskId}`, {
+      const response = await fetch(apiUrl(`/api/subtasks/${taskId}`), {
         method: "DELETE",
       });
       if (response.ok) {
@@ -274,8 +389,9 @@ export default function ProgramDetail() {
     routeToMenuLabel[fromRoute] ?? "RKM / Program"
   );
 
-  const toggleSection = (id: string) => {
-    setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
+  const toggleSection = (id: ProgramId) => {
+    const key = String(id);
+    setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   if (loading) {
@@ -493,7 +609,7 @@ export default function ProgramDetail() {
               {/* Status Chips */}
               <Box sx={{ display: "flex", gap: 1, mb: 2 }}>
                 <Chip
-                  label={(program.status?.name || "ON PROGRESS").toUpperCase()}
+                  label={getProgramStatusLabel(program.status).toUpperCase()}
                   size="small"
                   sx={{
                     bgcolor: "#EFF6FF",
@@ -680,7 +796,13 @@ export default function ProgramDetail() {
                 </Typography>
                 {canManage() && (
                   <Button
-                    onClick={() => navigate("/pic-tambah-tahapan")}
+                    onClick={() => navigate("/pic-tambah-tahapan", {
+                      state: {
+                        from: fromRoute,
+                        returnTo: "/program-detail",
+                        programId,
+                      },
+                    })}
                     sx={{
                       color: "#1F77AE",
                       fontWeight: 700,
@@ -697,7 +819,7 @@ export default function ProgramDetail() {
               </Box>
 
               <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-                {sections.map((section: any, sIdx: number) => (
+                {sections.map((section: DetailSection, sIdx: number) => (
                   <Box
                     key={section.id}
                     className="anim-fadein-up"
@@ -727,7 +849,7 @@ export default function ProgramDetail() {
                       <Box
                         sx={{ display: "flex", alignItems: "center", gap: 1 }}
                       >
-                        {openSections[section.id] ? (
+                        {openSections[String(section.id)] ? (
                           <ArrowDownIcon
                             sx={{ fontSize: "1.1rem", color: "#64748B" }}
                           />
@@ -744,16 +866,11 @@ export default function ProgramDetail() {
                           {section.title}
                         </Typography>
                         {/* Progress indicator */}
-                        <Box
-                          sx={{ display: "flex", alignItems: "center", gap: 0.3 }}
-                        >
-                          <Typography
-                            fontSize="0.82rem"
-                            fontWeight={700}
-                            color="#2563EB"
-                          >
-                            {section.tasks.length > 0 ? Math.round((section.tasks.filter((t: any) => t.status === "DONE").length / section.tasks.length) * 100) : 0}%
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.3, ml: 0.5 }}>
+                          <Typography fontSize="0.82rem" fontWeight={700} color="#2563EB">
+                            {section.actual ?? 0}%
                           </Typography>
+                          <TrendingUp sx={{ fontSize: "0.9rem", color: "#2563EB" }} />
                         </Box>
                       </Box>
 
@@ -791,10 +908,10 @@ export default function ProgramDetail() {
                                   programId,
                                   sectionId: section.id,
                                   namaTahapan: section.name,
-                                  deliverable: section.tasks.length + " tasks",
+                                  deliverable: section.deliverable,
                                   status: section.status || "Not Started",
-                                  planStart: "2026-07-01",
-                                  planFinish: "2026-12-31",
+                                  planStart: section.start || "2026-07-01",
+                                  planFinish: section.deadline || "2026-12-31",
                                 },
                               })}
                             />
@@ -806,7 +923,7 @@ export default function ProgramDetail() {
                     </Box>
 
                     {/* Section Tasks */}
-                    <Collapse in={openSections[section.id]}>
+                    <Collapse in={openSections[String(section.id)]}>
                       <Box
                         sx={{
                           p: 1.5,
@@ -815,7 +932,7 @@ export default function ProgramDetail() {
                           gap: 1,
                         }}
                       >
-                        {section.tasks.map((task: any, taskIndex: number) => {
+                        {section.tasks.map((task: DetailTask, taskIndex: number) => {
                           const isOverdueTask = task.overdue;
                           return (
                             <Box
@@ -998,6 +1115,8 @@ export default function ProgramDetail() {
                                       returnTo: "/program-detail",
                                       programId,
                                       stageId: section.id,
+                                      programTitle: program.title,
+                                      stageTitle: section.title,
                                       taskId: task.id,
                                     },
                                   })}
@@ -1016,8 +1135,9 @@ export default function ProgramDetail() {
                                           taskId: task.id,
                                           namaSubtask: task.title,
                                           status: task.status,
-                                          startDate: task.dateRange?.split(" - ")[0] || "",
-                                          deadline: task.dateRange?.split(" - ")[1] || "",
+                                          planStart: task.dateRange?.split(" - ")[0] || "",
+                                          planEnd: task.dateRange?.split(" - ")[1] || "",
+                                          deliverable: task.deliverable || "",
                                           expectedProgress: task.expected,
                                           actualProgress: task.actual,
                                           pic: "Unknown", // Can be properly passed if available
@@ -1032,6 +1152,38 @@ export default function ProgramDetail() {
                             </Box>
                           );
                         })}
+
+                        {canManage() && (
+                          <Box
+                            onClick={() => navigate("/pic-tambah-subtask", {
+                              state: {
+                                from: fromRoute,
+                                returnTo: "/program-detail",
+                                programId,
+                                stageId: section.id,
+                                sectionId: section.id,
+                                programTitle: program.title,
+                                stageTitle: section.title,
+                              },
+                            })}
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              py: 1.5,
+                              border: "1.5px dashed #BFDBFE",
+                              borderRadius: "8px",
+                              bgcolor: "#F8FBFF",
+                              cursor: "pointer",
+                              transition: "all 0.18s ease",
+                              "&:hover": { bgcolor: "#EFF6FF", borderColor: "#267ABD" },
+                            }}
+                          >
+                            <Typography fontSize="0.85rem" fontWeight={700} color="#2196F3">
+                              + Tambah Subtask
+                            </Typography>
+                          </Box>
+                        )}
                       </Box>
                     </Collapse>
                   </Box>

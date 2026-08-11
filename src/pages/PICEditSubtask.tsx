@@ -1,3 +1,4 @@
+import { apiUrl } from "../utils/api";
 import {
   Box,
   Button,
@@ -19,11 +20,26 @@ import { useNavigate, useLocation } from "react-router-dom";
 import ProfileMenu from "../components/ProfileMenu";
 import logoDanantara from "../assets/logo-danantara.png";
 import logoPelindo from "../assets/logo-pelindo.png";
-import batikOrnament from "../assets/batik 1.png";
+import batikOrnament from "../assets/batik-ornament.png";
 
 /* ================= OPTIONS ================= */
 
 const STATUS_OPTIONS = ["Not Started", "On Progress", "Done", "Hold"];
+
+const normalizeStatusOption = (status?: string) => {
+  switch ((status || "").toUpperCase()) {
+    case "DONE":
+      return "Done";
+    case "ON PROGRESS":
+      return "On Progress";
+    case "HOLD":
+      return "Hold";
+    case "NOT STARTED":
+      return "Not Started";
+    default:
+      return status || "On Progress";
+  }
+};
 
 /* ================= SHARED FIELD STYLE ================= */
 
@@ -57,7 +73,7 @@ export default function PICEditSubtask() {
   const fromRoute    = location.state?.from      ?? "/pic-rkm";
   const returnTo     = location.state?.returnTo;
   const programId    = location.state?.programId    ?? "";
-  const stageId      = location.state?.stageId      ?? "";
+  const stageId      = location.state?.stageId      ?? location.state?.sectionId ?? "";
   const taskId       = location.state?.taskId       ?? location.state?.id_subtask ?? "";
   const programTitle = location.state?.programTitle ?? "";
   const stageTitle   = location.state?.stageTitle   ?? "";
@@ -70,13 +86,13 @@ export default function PICEditSubtask() {
     location.state?.deliverable ?? "SOP Serah Terima"
   );
   const [status, setStatus] = useState<string>(
-    location.state?.status ?? "On Progress"
+    normalizeStatusOption(location.state?.status)
   );
   const [planStart, setPlanStart] = useState<string>(
-    location.state?.planStart ?? "2026-01-01"
+    location.state?.planStart ?? location.state?.startDate ?? "2026-01-01"
   );
   const [planEnd, setPlanEnd] = useState<string>(
-    location.state?.planEnd ?? "2026-01-15"
+    location.state?.planEnd ?? location.state?.deadline ?? "2026-01-15"
   );
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState<string | null>(
@@ -128,7 +144,7 @@ export default function PICEditSubtask() {
     }
 
     try {
-      const response = await fetch(`http://localhost:8000/api/subtasks/${taskId}`, {
+      const response = await fetch(apiUrl(`/api/subtasks/${taskId}`), {
         method: "POST",
         body: formData,
       });

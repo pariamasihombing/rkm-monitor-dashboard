@@ -1,3 +1,4 @@
+import { apiUrl } from "../utils/api";
 import {
   Box,
   Card,
@@ -25,15 +26,10 @@ import {
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import ProfileMenu from "../components/ProfileMenu";
-import {
-  dashboardMetrics,
-  targetAchievement,
-  programs,
-  statuses,
-} from "../data/dashboardMock";
+import { statuses } from "../data/dashboardMock";
 import logoDanantara from "../assets/logo-danantara.png";
 import logoPelindo from "../assets/logo-pelindo.png";
-import batikOrnament from "../assets/batik 1.png";
+import batikOrnament from "../assets/batik-ornament.png";
 import { canManage } from "../utils/rbac";
 import {
   AreaChart,
@@ -112,22 +108,6 @@ const renderPieLabel = (props: any) => {
 
 /* ================= DATA ================= */
 
-const trendData = [
-  { name: "Week 1", Expected: 10, Actual: 15 },
-  { name: "Week 2", Expected: 20, Actual: 25 },
-  { name: "Week 3", Expected: 35, Actual: 40 },
-  { name: "Week 4", Expected: 50, Actual: 55 },
-  { name: "Week 5", Expected: 65, Actual: 65 },
-  { name: "Week 6", Expected: 75, Actual: 70 },
-];
-
-const statusData = [
-  { name: "Done", value: 45, color: "#4CAF50" },
-  { name: "On Progress", value: 30, color: "#2196F3" },
-  { name: "Not Started", value: 15, color: "#FF9800" },
-  { name: "Hold", value: 10, color: "#9C27B0" },
-];
-
 /* ================= DEFAULT STATE ================= */
 
 const defaultDashboard = {
@@ -176,7 +156,7 @@ export default function PICDashboard() {
       if (selectedDate) params.append("date", selectedDate);
       if (searchQuery) params.append("search", searchQuery);
 
-      fetch(`http://localhost:8000/api/dashboard?${params.toString()}`)
+      fetch(apiUrl(`/api/dashboard?${params.toString()}`))
         .then((r) => r.json())
         .then((data) => setDashData(data))
         .catch(() => setDashData(defaultDashboard));
@@ -191,7 +171,7 @@ export default function PICDashboard() {
 
     try {
       // (Opsional) Lakukan request DELETE ke backend di sini jika API sudah siap
-      // await fetch(`http://localhost:8000/api/programs/${id}`, { method: 'DELETE' });
+      // await fetch(apiUrl(`/api/programs/${id}`), { method: 'DELETE' });
 
       // Menghapus data dari UI secara instan tanpa perlu refresh
       setDashData((prev) => ({
@@ -480,7 +460,7 @@ export default function PICDashboard() {
                         Expected: dashData.chartData.trendChart.expected[i] ?? 0,
                         Actual: dashData.chartData.trendChart.actual[i] ?? 0,
                       }))}
-                      margin={{ right: 20, left: -10, bottom: 5, top: 30 }}
+                      margin={{ right: 20, left: -10, bottom: 24, top: 30 }}
                     >
                       <defs>
                         <linearGradient id="gradActual" x1="0" y1="0" x2="0" y2="1">
@@ -498,7 +478,7 @@ export default function PICDashboard() {
                         axisLine={false}
                         tickLine={false}
                         tick={{ fontSize: 12, fill: "#94A3B8", fontWeight: 500 }}
-                        dy={8}
+                        dy={18}
                       />
                       <YAxis
                         axisLine={false}

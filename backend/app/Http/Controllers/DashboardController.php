@@ -38,7 +38,8 @@ class DashboardController extends Controller
             $query = \App\Models\Program::with([
                 'status',
                 'pics',
-                'stages.subtasks',
+                'stages.status',
+                'stages.subtasks.status',
             ]);
 
             // ============================================================
@@ -95,33 +96,17 @@ class DashboardController extends Controller
 
             foreach ($programs as $program) {
 
-                // --- Hitung overall_progress program (rata-rata subtask) ---
-                $subtaskCount    = 0;
-                $progressSum     = 0;
-
+                // --- Hitung total task untuk summary ---
                 foreach ($program->stages ?? [] as $stage) {
                     foreach ($stage->subtasks ?? [] as $subtask) {
-                        $subtaskCount++;
                         $totalTask++;
-                        $progressSum += (int) ($subtask->actual_progress ?? 0);
                     }
                 }
 
-                $overallProgress = $subtaskCount > 0
-                    ? (int) round($progressSum / $subtaskCount)
-                    : 0;
-
-                // --- Hitung expected_progress berdasarkan posisi hari ini di timeline ---
-                $planStart  = $program->plan_start  ? \Carbon\Carbon::parse($program->plan_start)  : null;
+                $metrics = $this->progressService->calculateMetrics($program, 'program');
+                $overallProgress = (float) $metrics['actual_progress'];
+                $expectedProgress = (float) $metrics['expected_progress'];
                 $planFinish = $program->plan_finish  ? \Carbon\Carbon::parse($program->plan_finish) : null;
-
-                $expectedProgress = 0;
-                if ($planStart && $planFinish && $planFinish->gt($planStart)) {
-                    $totalDays   = $planStart->diffInDays($planFinish);
-                    $elapsedDays = $planStart->diffInDays($today, false); // negatif jika belum mulai
-                    $elapsedDays = max(0, min($elapsedDays, $totalDays));
-                    $expectedProgress = (int) round(($elapsedDays / $totalDays) * 100);
-                }
 
                 $isDone = $overallProgress >= 100;
 
@@ -341,6 +326,16 @@ class DashboardController extends Controller
             if ($isOverdue || $isDueSoon || $isBehind) {
                 $alarmLabel = $isOverdue ? 'OVERDUE' : ($isDueSoon ? 'DUE_SOON' : 'BEHIND_EXPECTED');
 
+                // Ambil nama-nama PIC dari relasi 'pics' (tabel users via program_pics)
+                $picNames = [];
+                if ($program->relationLoaded('pics')) {
+                    $picNames = $program->pics->pluck('name')->toArray();
+                }
+                // Fallback ke kolom 'pic' (teks) jika relasi kosong
+                $picString = count($picNames) > 0
+                    ? implode(', ', $picNames)
+                    : ($program->pic ?? '');
+
                 $alerts[] = [
                     'id'        => $program->id_program ?? $program->id,
                     'programId' => $program->id_program ?? $program->id,
@@ -349,6 +344,7 @@ class DashboardController extends Controller
                     'date'      => $planFinish
                         ? $planFinish->format('d M Y')
                         : '-',
+                    'pic'       => $picString,
                 ];
             }
         }

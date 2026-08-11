@@ -1,3 +1,4 @@
+import { apiUrl } from "../utils/api";
 import {
   Box,
   Card,
@@ -28,7 +29,7 @@ import ProfileMenu from "../components/ProfileMenu";
 import { statuses } from "../data/dashboardMock";
 import logoDanantara from "../assets/logo-danantara.png";
 import logoPelindo from "../assets/logo-pelindo.png";
-import batikOrnament from "../assets/batik 1.png";
+import batikOrnament from "../assets/batik-ornament.png";
 import { canManage } from "../utils/rbac";
 
 /* ================= TYPES ================= */
@@ -99,7 +100,7 @@ export default function PICRKM() {
       if (selectedDate) params.append("date", selectedDate);
       if (searchQuery) params.append("search", searchQuery);
 
-      const response = await fetch(`http://localhost:8000/api/programs?${params.toString()}`);
+      const response = await fetch(apiUrl(`/api/programs?${params.toString()}`));
       const data = await response.json();
       const dataArray = Array.isArray(data) ? data : (data.data || []);
       setPrograms(dataArray.filter((p: Program) => p.type === "RKM"));
@@ -125,7 +126,7 @@ export default function PICRKM() {
   const handleDelete = async (id: number) => {
     if (window.confirm("Apakah Anda yakin ingin menghapus program ini?")) {
       try {
-        const response = await fetch(`http://localhost:8000/api/programs/${id}`, {
+        const response = await fetch(apiUrl(`/api/programs/${id}`), {
           method: "DELETE",
         });
         if (response.ok) {
@@ -141,7 +142,7 @@ export default function PICRKM() {
   const handleDeleteStage = async (id: number) => {
     if (window.confirm("Apakah Anda yakin ingin menghapus tahapan ini?")) {
       try {
-        const response = await fetch(`http://localhost:8000/api/stages/${id}`, {
+        const response = await fetch(apiUrl(`/api/stages/${id}`), {
           method: "DELETE",
         });
         if (response.ok) {
@@ -416,7 +417,7 @@ export default function PICRKM() {
               </Box>
 
               <TableContainer sx={{ px: 2, pb: 1 }}>
-                <Table sx={{ minWidth: 650, borderCollapse: "separate", borderSpacing: "0 13px" }}>
+                <Table sx={{ minWidth: 650, tableLayout: "fixed", borderCollapse: "separate", borderSpacing: "0 13px" }}>
                   <TableHead>
                     <TableRow
                       sx={{
@@ -445,17 +446,17 @@ export default function PICRKM() {
                         },
                       }}
                     >
-                      <TableCell align="center" sx={{ fontWeight: 600, fontSize: "0.85rem", color: "#727989", py: 0.5, whiteSpace: "nowrap", width: activeTab === "Program" ? "22%" : "25%" }}>
+                      <TableCell align="center" sx={{ fontWeight: 600, fontSize: "0.85rem", color: "#727989", py: 0.5, whiteSpace: "nowrap", width: activeTab === "Program" ? "20%" : "22%" }}>
                         {activeTab === "Program" ? "Program/Project" : "Tahapan/Action"}
                       </TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 600, fontSize: "0.85rem", color: "#727989", py: 0.5, whiteSpace: "nowrap", width: activeTab === "Program" ? "14%" : "20%" }}>
+                      <TableCell align="center" sx={{ fontWeight: 600, fontSize: "0.85rem", color: "#727989", py: 0.5, whiteSpace: "nowrap", width: "14%" }}>
                         {activeTab === "Program" ? "PIC" : "Program"}
                       </TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 600, fontSize: "0.85rem", color: "#727989", py: 0.5, whiteSpace: "nowrap", width: "12%" }}>Status</TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 600, fontSize: "0.85rem", color: "#727989", py: 0.5, whiteSpace: "nowrap", width: "20%" }}>Progress Overall</TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 600, fontSize: "0.85rem", color: "#727989", py: 0.5, whiteSpace: "nowrap", width: "14%" }}>Alarm</TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 600, fontSize: "0.85rem", color: "#727989", py: 0.5, whiteSpace: "nowrap", width: "10%" }}>Deadline</TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 600, fontSize: "0.85rem", color: "#727989", py: 0.5, whiteSpace: "nowrap", width: "8%" }}>Action</TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 600, fontSize: "0.85rem", color: "#727989", py: 0.5, whiteSpace: "nowrap", width: "10%" }}>Status</TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 600, fontSize: "0.85rem", color: "#727989", py: 0.5, whiteSpace: "nowrap", width: "16%" }}>Progress Overall</TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 600, fontSize: "0.85rem", color: "#727989", py: 0.5, whiteSpace: "nowrap", width: "12%" }}>Alarm</TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 600, fontSize: "0.85rem", color: "#727989", py: 0.5, whiteSpace: "nowrap", width: "12%" }}>Deadline</TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 600, fontSize: "0.85rem", color: "#727989", py: 0.5, whiteSpace: "nowrap", width: "16%" }}>Action</TableCell>
                     </TableRow>
                   </TableHead>
 
@@ -492,14 +493,14 @@ export default function PICRKM() {
                         }}
                       >
                         {/* Title (Program Name or Stage Name) */}
-                        <TableCell sx={{ py: 2 }}>
+                        <TableCell sx={{ py: 2, width: activeTab === "Program" ? "20%" : "22%" }}>
                           <Typography fontWeight={600} fontSize="0.9rem" sx={{ color: "#000000" }}>
                             {item.name}
                           </Typography>
                         </TableCell>
 
                         {/* Secondary (PIC or Program Name) */}
-                        <TableCell sx={{ py: 2 }}>
+                        <TableCell sx={{ py: 2, width: "14%", overflow: "hidden" }}>
                           <Typography fontWeight={600} fontSize="0.85rem" sx={{ color: "#727989" }}>
                             {activeTab === "Program"
                               ? (item.pic ? item.pic.split(" | ").filter((part: string) => part !== "").join(", ") : "-")
@@ -508,7 +509,7 @@ export default function PICRKM() {
                         </TableCell>
 
                         {/* Status */}
-                        <TableCell sx={{ py: 2 }} align="center">
+                        <TableCell sx={{ py: 2, width: "10%" }} align="center">
                           <Chip
                             label={item.status?.name || "N/A"}
                             sx={{
@@ -523,7 +524,7 @@ export default function PICRKM() {
                         </TableCell>
 
                         {/* Progress */}
-                        <TableCell sx={{ py: 2 }}>
+                        <TableCell sx={{ py: 2, width: "16%" }}>
                           <Box sx={{ display: "flex", flexDirection: "column" }}>
                             <Box
                               sx={{
@@ -553,7 +554,7 @@ export default function PICRKM() {
                         </TableCell>
 
                         {/* Alarm */}
-                        <TableCell sx={{ py: 2 }} align="center">
+                        <TableCell sx={{ py: 2, width: "12%" }} align="center">
                           <Chip
                             label={item.indicator ? item.indicator.toUpperCase() : "ON TRACK"}
                             sx={{
@@ -568,14 +569,14 @@ export default function PICRKM() {
                         </TableCell>
 
                         {/* Deadline */}
-                        <TableCell sx={{ py: 2 }} align="center">
+                        <TableCell sx={{ py: 2, width: "12%" }} align="center">
                           <Typography fontWeight={600} fontSize="0.9rem" sx={{ color: "#727989" }}>
                             {activeTab === "Program" ? item.plan_finish : item.plan_finish}
                           </Typography>
                         </TableCell>
 
                         {/* Action — View | Edit | Hapus */}
-                        <TableCell sx={{ py: 2 }}>
+                        <TableCell sx={{ py: 2, width: "16%" }}>
                           <Box sx={{ display: "flex", gap: 1, alignItems: "center", justifyContent: "center" }}>
                             <Button
                               size="small"

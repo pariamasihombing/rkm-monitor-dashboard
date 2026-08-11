@@ -1,3 +1,4 @@
+import { apiUrl } from "../utils/api";
 import {
   Box,
   Button,
@@ -20,7 +21,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import ProfileMenu from "../components/ProfileMenu";
 import logoDanantara from "../assets/logo-danantara.png";
 import logoPelindo from "../assets/logo-pelindo.png";
-import batikOrnament from "../assets/batik 1.png";
+import batikOrnament from "../assets/batik-ornament.png";
 
 /* ================= DATA ================= */
 
@@ -32,8 +33,6 @@ const INITIATIVE_STRATEGY_OPTIONS = [
   "IS-02-Pengembangan SDM",
   "IS-03-Ekspansi Pasar",
 ];
-
-const STATUS_OPTIONS = ["On Progress", "Done", "Not Started", "Hold"];
 
 const PIC_UTAMA_LIST      = ["Hendra", "Raghi", "Suci", "Fero", "Reza"];
 const PIC_SUPPORTING_LIST = ["Hendra", "Raghi", "Suci", "Fero", "Reza"];
@@ -86,7 +85,7 @@ export default function PICEditProgram() {
     if (!passed) return INITIATIVE_STRATEGY_OPTIONS[0];
     return INITIATIVE_STRATEGY_OPTIONS.find(opt => opt.startsWith(passed)) || passed;
   });
-  const [status,              setStatus]              = useState<string>(location.state?.status              ?? "On Progress");
+  // Status dikelola otomatis oleh sistem berdasarkan subtask
   const [planStart,           setPlanStart]           = useState<string>(location.state?.planStart           ?? "");
   const [planFinish,          setPlanFinish]          = useState<string>(location.state?.planFinish          ?? "");
 
@@ -109,7 +108,7 @@ export default function PICEditProgram() {
     if (programId && !namaProgram) {
       const fetchProgram = async () => {
         try {
-          const response = await fetch(`http://localhost:8000/api/programs/${programId}`);
+          const response = await fetch(apiUrl(`/api/programs/${programId}`));
           if (response.ok) {
             const data = await response.json();
             setNamaProgram(data.name);
@@ -118,7 +117,7 @@ export default function PICEditProgram() {
             const fullStrategy = INITIATIVE_STRATEGY_OPTIONS.find(opt => opt.startsWith(data.code_initiative_strategy)) || data.code_initiative_strategy;
             setInitiativeStrategy(fullStrategy);
             
-            setStatus(data.status?.name || "On Progress");
+            // Status dihilangkan, dikelola otomatis oleh sistem
             setPlanStart(data.plan_start);
             setPlanFinish(data.plan_finish);
             
@@ -165,13 +164,6 @@ export default function PICEditProgram() {
       return;
     }
 
-    const statusMap: Record<string, number> = {
-      "Not Started": 1,
-      "On Progress": 2,
-      "Done": 3,
-      "Hold": 4,
-    };
-
     const strategyCode = initiativeStrategy.split("-").slice(0, 2).join("-");
     
     // Combine all selected PICs into one string with category delimiters
@@ -186,14 +178,14 @@ export default function PICEditProgram() {
       name: namaProgram,
       type: tipeProgram,
       pic: allPics,
-      id_status: statusMap[status] || 2,
+      id_status: 1, // Default — status otomatis dikalkulasi sistem dari subtask
       code_initiative_strategy: strategyCode,
       plan_start: planStart,
       plan_finish: planFinish,
     };
 
     try {
-      const response = await fetch(`http://localhost:8000/api/programs/${programId}`, {
+      const response = await fetch(apiUrl(`/api/programs/${programId}`), {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -405,13 +397,7 @@ export default function PICEditProgram() {
                   </TextField>
                 </Box>
 
-                {/* Status */}
-                <Box>
-                  <Typography fontSize="0.85rem" fontWeight={600} sx={{ color: "#1E293B", mb: 0.6 }}>Status<span style={{ color: "#E9004A" }}>*</span></Typography>
-                  <TextField select fullWidth size="small" value={status} onChange={(e) => setStatus(e.target.value)} sx={fieldSx}>
-                    {STATUS_OPTIONS.map((opt) => <MenuItem key={opt} value={opt}>{opt}</MenuItem>)}
-                  </TextField>
-                </Box>
+                {/* Status dihilangkan — otomatis dikalkulasi dari subtask */}
 
                 {/* Plan Start */}
                 <Box>

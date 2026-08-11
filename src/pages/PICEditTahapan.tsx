@@ -1,3 +1,4 @@
+import { apiUrl } from "../utils/api";
 import {
   Box,
   Button,
@@ -19,7 +20,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import ProfileMenu from "../components/ProfileMenu";
 import logoDanantara from "../assets/logo-danantara.png";
 import logoPelindo from "../assets/logo-pelindo.png";
-import batikOrnament from "../assets/batik 1.png";
+import batikOrnament from "../assets/batik-ornament.png";
 
 /* ================= OPTIONS ================= */
 
@@ -65,8 +66,9 @@ export default function PICEditTahapan() {
   const [deliverable, setDeliverable] = useState<string>(
     location.state?.deliverable ?? ""
   );
+  // Status dikelola otomatis oleh sistem berdasarkan subtask
   const [status, setStatus] = useState<string>(
-    location.state?.status ?? "On Progress"
+    location.state?.status ?? "Not Started"
   );
   const [planStart, setPlanStart] = useState<string>(
     location.state?.planStart ?? ""
@@ -111,7 +113,7 @@ export default function PICEditTahapan() {
     };
 
     try {
-      const response = await fetch(`http://localhost:8000/api/stages/${sectionId}`, {
+      const response = await fetch(apiUrl(`/api/stages/${sectionId}`), {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

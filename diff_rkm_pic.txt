@@ -1,0 +1,430 @@
+--- src/pages/RKM.tsx	2026-07-13 15:03:36
++++ src/pages/PICRKM.tsx	2026-07-13 15:03:36
+@@ -21,7 +21,6 @@
+   ContentPaste,
+   TrendingUp,
+   Search as SearchIcon,
+-  ManageAccounts as ManageAccountsIcon,
+ } from "@mui/icons-material";
+ import { useState, useEffect } from "react";
+ import { useNavigate } from "react-router-dom";
+@@ -72,7 +71,7 @@
+ 
+ /* ================= COMPONENT ================= */
+ 
+-export default function RKM() {
++export default function PICRKM() {
+   const navigate = useNavigate();
+   const [selectedStatus, setSelectedStatus] = useState("All");
+   const [selectedAlarm, setSelectedAlarm] = useState("All");
+@@ -81,18 +80,8 @@
+   const [searchQuery, setSearchQuery] = useState("");
+   const [profileAnchor, setProfileAnchor] = useState<HTMLElement | null>(null);
+   const [activeMenu, setActiveMenu] = useState("RKM / Program");
++  const [activeTab, setActiveTab] = useState("Program");
+ 
+-  const menuItems = [
+-    { icon: DashboardIcon, label: "Dashboard", route: "/dashboard" },
+-    { icon: Assessment, label: "RKM / Program", route: "/rkm" },
+-    { icon: ContentPaste, label: "Non RKM", route: "/non-rkm" },
+-    { icon: TrendingUp, label: "Weekly Monitoring", route: "/weekly-monitoring" },
+-  ];
+-
+-  if (canManage()) {
+-    menuItems.push({ icon: ManageAccountsIcon, label: "Kelola Akun", route: "/manage-users" });
+-  }
+-
+   const [programs, setPrograms] = useState<Program[]>([]);
+   const [loading, setLoading] = useState(true);
+ 
+@@ -112,7 +101,6 @@
+ 
+       const response = await fetch(`http://localhost:8000/api/programs?${params.toString()}`);
+       const data = await response.json();
+-
+       const dataArray = Array.isArray(data) ? data : (data.data || []);
+       setPrograms(dataArray.filter((p: Program) => p.type === "RKM"));
+     } catch (error) {
+@@ -121,6 +109,19 @@
+       setLoading(false);
+     }
+   };
++
++  const allStages = programs.flatMap(p => (p.stages || []).map(s => ({
++    ...s,
++    programName: p.name,
++    programId: p.id_program
++  })));
++
++  const getStageProgress = (stage: Stage) => {
++    if (!stage.subtasks || stage.subtasks.length === 0) return 0;
++    const completed = stage.subtasks.filter(t => t.status?.name === "Done").length;
++    return Math.round((completed / stage.subtasks.length) * 100);
++  };
++
+   const handleDelete = async (id: number) => {
+     if (window.confirm("Apakah Anda yakin ingin menghapus program ini?")) {
+       try {
+@@ -180,13 +181,25 @@
+         </Box>
+ 
+         <Box sx={{ px: -2 }}>
+-          {menuItems.map((item) => (
++          {[
++            { icon: DashboardIcon, label: "Dashboard" },
++            { icon: Assessment, label: "RKM / Program" },
++            { icon: ContentPaste, label: "Non RKM" },
++            { icon: TrendingUp, label: "Weekly Monitoring" },
++          ].map((item) => (
+             <Button
+               key={item.label}
+               startIcon={<item.icon sx={{ fontSize: "1.4rem" }} />}
+               onClick={() => {
+                 setActiveMenu(item.label);
+-                navigate(item.route);
++                const routeMap: Record<string, string> = {
++                  "Dashboard": "/pic-dashboard",
++                  "RKM / Program": "/pic-rkm",
++                  "Non RKM": "/pic-non-rkm",
++                  "Weekly Monitoring": "/pic-weekly-monitoring",
++                };
++                const route = routeMap[item.label];
++                if (route) navigate(route);
+               }}
+               sx={{
+                 color: "white",
+@@ -260,50 +273,32 @@
+         <Box sx={{ p: 4, maxWidth: 1400, mx: "auto", pb: 15 }}>
+           {/* FILTER */}
+           <Card sx={{ mb: 3, boxShadow: "0 2px 12px rgba(21,101,192,0.04)", bgcolor: "#FFFFFF" }}>
+-            <CardContent sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(5, 1fr)" }, gap: 3, width: "100%", pt: 3, pb: 4, px: 4 }}>
++            <CardContent sx={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 3, pt: 3, pb: 4, px: 4 }}>
++              {/* Status */}
+               <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                 <Typography variant="caption" sx={{ display: "block", mb: 0.5, fontWeight: 600, fontSize: "0.85rem", color: "#727989" }}>
+                   Status
+                 </Typography>
+                 <TextField
+-                  select
+-                  size="small"
+-                  value={selectedStatus}
++                  select size="small" value={selectedStatus}
+                   onChange={(e) => setSelectedStatus(e.target.value)}
+                   fullWidth
+-                  sx={{
+-                    "& .MuiOutlinedInput-root": {
+-                      borderRadius: "5px",
+-                      "& fieldset": { borderColor: "rgba(83, 83, 83, 0.21)" },
+-                      "&:hover fieldset": { borderColor: "rgba(83, 83, 83, 0.21)" },
+-                    },
+-                    "& .MuiOutlinedInput-input": { color: "#000000" },
+-                  }}
++                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "5px", "& fieldset": { borderColor: "rgba(83,83,83,0.21)" }, "&:hover fieldset": { borderColor: "rgba(83,83,83,0.21)" } }, "& .MuiOutlinedInput-input": { color: "#000" } }}
+                 >
+-                  {statuses.map((s) => (
+-                    <MenuItem key={s} value={s}>{s}</MenuItem>
+-                  ))}
++                  {statuses.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+                 </TextField>
+               </Box>
+ 
++              {/* Alarm */}
+               <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                 <Typography variant="caption" sx={{ display: "block", mb: 0.5, fontWeight: 600, fontSize: "0.85rem", color: "#727989" }}>
+                   Alarm
+                 </Typography>
+                 <TextField
+-                  select
+-                  size="small"
+-                  value={selectedAlarm}
++                  select size="small" value={selectedAlarm}
+                   onChange={(e) => setSelectedAlarm(e.target.value)}
+                   fullWidth
+-                  sx={{
+-                    "& .MuiOutlinedInput-root": {
+-                      borderRadius: "5px",
+-                      "& fieldset": { borderColor: "rgba(83, 83, 83, 0.21)" },
+-                      "&:hover fieldset": { borderColor: "rgba(83, 83, 83, 0.21)" },
+-                    },
+-                    "& .MuiOutlinedInput-input": { color: "#000000" },
+-                  }}
++                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "5px", "& fieldset": { borderColor: "rgba(83,83,83,0.21)" }, "&:hover fieldset": { borderColor: "rgba(83,83,83,0.21)" } }, "& .MuiOutlinedInput-input": { color: "#000" } }}
+                 >
+                   <MenuItem value="All">All</MenuItem>
+                   <MenuItem value="On Track">On Track</MenuItem>
+@@ -313,24 +308,16 @@
+                 </TextField>
+               </Box>
+ 
++              {/* PIC */}
+               <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                 <Typography variant="caption" sx={{ display: "block", mb: 0.5, fontWeight: 600, fontSize: "0.85rem", color: "#727989" }}>
+                   PIC
+                 </Typography>
+                 <TextField
+-                  select
+-                  size="small"
+-                  value={selectedPIC}
++                  select size="small" value={selectedPIC}
+                   onChange={(e) => setSelectedPIC(e.target.value)}
+                   fullWidth
+-                  sx={{
+-                    "& .MuiOutlinedInput-root": {
+-                      borderRadius: "5px",
+-                      "& fieldset": { borderColor: "rgba(83, 83, 83, 0.21)" },
+-                      "&:hover fieldset": { borderColor: "rgba(83, 83, 83, 0.21)" },
+-                    },
+-                    "& .MuiOutlinedInput-input": { color: "#000000" },
+-                  }}
++                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "5px", "& fieldset": { borderColor: "rgba(83,83,83,0.21)" }, "&:hover fieldset": { borderColor: "rgba(83,83,83,0.21)" } }, "& .MuiOutlinedInput-input": { color: "#000" } }}
+                 >
+                   <MenuItem value="All">All</MenuItem>
+                   <MenuItem value="Raghi">Raghi</MenuItem>
+@@ -343,48 +330,31 @@
+                 </TextField>
+               </Box>
+ 
++              {/* Date Range */}
+               <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                 <Typography variant="caption" sx={{ display: "block", mb: 0.5, fontWeight: 600, fontSize: "0.85rem", color: "#727989" }}>
+                   Date Range
+                 </Typography>
+                 <TextField
+-                  type="date"
+-                  size="small"
+-                  value={selectedDate}
++                  type="date" size="small" value={selectedDate}
+                   onChange={(e) => setSelectedDate(e.target.value)}
+                   fullWidth
+-                  sx={{
+-                    "& .MuiOutlinedInput-root": {
+-                      borderRadius: "5px",
+-                      "& fieldset": { borderColor: "rgba(83, 83, 83, 0.21)" },
+-                      "&:hover fieldset": { borderColor: "rgba(83, 83, 83, 0.21)" },
+-                    },
+-                    "& .MuiOutlinedInput-input": { color: "#B0BBD5" },
+-                  }}
++                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "5px", "& fieldset": { borderColor: "rgba(83,83,83,0.21)" }, "&:hover fieldset": { borderColor: "rgba(83,83,83,0.21)" } }, "& .MuiOutlinedInput-input": { color: "#B0BBD5" } }}
+                 />
+               </Box>
+ 
++              {/* Search */}
+               <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                 <Typography variant="caption" sx={{ display: "block", mb: 0.5, fontWeight: 600, fontSize: "0.85rem", color: "#727989" }}>
+                   Search
+                 </Typography>
+                 <TextField
+-                  size="small"
+-                  value={searchQuery}
++                  size="small" value={searchQuery}
+                   onChange={(e) => setSearchQuery(e.target.value)}
+                   placeholder="Search Program..."
+                   fullWidth
+-                  sx={{
+-                    "& .MuiOutlinedInput-root": {
+-                      borderRadius: "5px",
+-                      "& fieldset": { borderColor: "rgba(83, 83, 83, 0.21)" },
+-                      "&:hover fieldset": { borderColor: "rgba(83, 83, 83, 0.21)" },
+-                    },
+-                    "& .MuiOutlinedInput-input": { color: "#B0BBD5" },
+-                  }}
+-                  InputProps={{
+-                    endAdornment: <SearchIcon sx={{ fontSize: 18, color: "#9CA3AF" }} />,
+-                  }}
++                  sx={{ "& .MuiOutlinedInput-root": { borderRadius: "5px", "& fieldset": { borderColor: "rgba(83,83,83,0.21)" }, "&:hover fieldset": { borderColor: "rgba(83,83,83,0.21)" } }, "& .MuiOutlinedInput-input": { color: "#B0BBD5" } }}
++                  InputProps={{ endAdornment: <SearchIcon sx={{ fontSize: 18, color: "#9CA3AF" }} /> }}
+                 />
+               </Box>
+             </CardContent>
+@@ -393,17 +363,39 @@
+           {/* ================= PROGRAM/TAHAPAN LIST TABLE ================= */}
+           <Card sx={{ boxShadow: "0 2px 12px rgba(21,101,192,0.04)" }}>
+             <CardContent sx={{ p: 3 }}>
++              {/* Header row: toggle + Tambah Program button */}
+               <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, ml: 2, mr: 2 }}>
+                 <Box sx={{ display: "flex", gap: 3, alignItems: "center" }}>
+                   <Typography
++                    onClick={() => setActiveTab("Program")}
+                     fontWeight={700}
+                     fontSize="1.05rem"
+-                    sx={{ color: "#0C4B7D", borderBottom: "2px solid #0C4B7D", pb: 0.5, display: "inline-block" }}
++                    sx={{
++                      cursor: "pointer",
++                      color: activeTab === "Program" ? "#0C4B7D" : "#727989",
++                      borderBottom: activeTab === "Program" ? "2px solid #0C4B7D" : "none",
++                      pb: 0.5,
++                      transition: "all 0.2s"
++                    }}
+                   >
+                     Program List
+                   </Typography>
++                  <Typography
++                    onClick={() => setActiveTab("Tahapan")}
++                    fontWeight={700}
++                    fontSize="1.05rem"
++                    sx={{
++                      cursor: "pointer",
++                      color: activeTab === "Tahapan" ? "#0C4B7D" : "#727989",
++                      borderBottom: activeTab === "Tahapan" ? "2px solid #0C4B7D" : "none",
++                      pb: 0.5,
++                      transition: "all 0.2s"
++                    }}
++                  >
++                    Tahapan List
++                  </Typography>
+                 </Box>
+-                {canManage() && (
++                {activeTab === "Program" && canManage() && (
+                   <Button
+                     onClick={() => navigate("/pic-tambah-program")}
+                     sx={{
+@@ -453,11 +445,11 @@
+                         },
+                       }}
+                     >
+-                      <TableCell align="center" sx={{ fontWeight: 600, fontSize: "0.85rem", color: "#727989", py: 0.5, whiteSpace: "nowrap", width: "22%" }}>
+-                        Program/Project
++                      <TableCell align="center" sx={{ fontWeight: 600, fontSize: "0.85rem", color: "#727989", py: 0.5, whiteSpace: "nowrap", width: activeTab === "Program" ? "22%" : "25%" }}>
++                        {activeTab === "Program" ? "Program/Project" : "Tahapan/Action"}
+                       </TableCell>
+-                      <TableCell align="center" sx={{ fontWeight: 600, fontSize: "0.85rem", color: "#727989", py: 0.5, whiteSpace: "nowrap", width: "14%" }}>
+-                        PIC
++                      <TableCell align="center" sx={{ fontWeight: 600, fontSize: "0.85rem", color: "#727989", py: 0.5, whiteSpace: "nowrap", width: activeTab === "Program" ? "14%" : "20%" }}>
++                        {activeTab === "Program" ? "PIC" : "Program"}
+                       </TableCell>
+                       <TableCell align="center" sx={{ fontWeight: 600, fontSize: "0.85rem", color: "#727989", py: 0.5, whiteSpace: "nowrap", width: "12%" }}>Status</TableCell>
+                       <TableCell align="center" sx={{ fontWeight: 600, fontSize: "0.85rem", color: "#727989", py: 0.5, whiteSpace: "nowrap", width: "20%" }}>Progress Overall</TableCell>
+@@ -474,17 +466,17 @@
+                           <CircularProgress size={30} />
+                         </TableCell>
+                       </TableRow>
+-                    ) : programs.length === 0 ? (
++                    ) : (activeTab === "Program" ? programs : allStages).length === 0 ? (
+                       <TableRow>
+                         <TableCell colSpan={7} align="center" sx={{ py: 5 }}>
+                           <Typography color="textSecondary">
+-                            Tidak ada program ditemukan.
++                            Tidak ada {activeTab === "Program" ? "program" : "tahapan"} ditemukan.
+                           </Typography>
+                         </TableCell>
+                       </TableRow>
+-                    ) : programs.map((item: any, idx) => (
++                    ) : (activeTab === "Program" ? programs : allStages).map((item: any, idx) => (
+                       <TableRow
+-                        key={item.id_program}
++                        key={activeTab === "Program" ? item.id_program : item.id_stage}
+                         className="anim-fadein-up"
+                         style={{ animationDelay: `${0.08 + idx * 0.07}s` }}
+                         sx={{
+@@ -506,10 +498,12 @@
+                           </Typography>
+                         </TableCell>
+ 
+-                        {/* Secondary (PIC) */}
++                        {/* Secondary (PIC or Program Name) */}
+                         <TableCell sx={{ py: 2 }}>
+                           <Typography fontWeight={600} fontSize="0.85rem" sx={{ color: "#727989" }}>
+-                            {item.pic ? item.pic.split(" | ").filter((part: string) => part !== "").join(", ") : "-"}
++                            {activeTab === "Program"
++                              ? (item.pic ? item.pic.split(" | ").filter((part: string) => part !== "").join(", ") : "-")
++                              : item.programName}
+                           </Typography>
+                         </TableCell>
+ 
+@@ -546,14 +540,14 @@
+                                 className="progress-fill"
+                                 sx={{
+                                   height: "100%",
+-                                  width: `${item.overall_progress}%`,
++                                  width: `${activeTab === "Program" ? item.overall_progress : getStageProgress(item)}%`,
+                                   bgcolor: "#2865FD",
+                                   borderRadius: "2px 0 0 2px",
+                                 }}
+                               />
+                             </Box>
+                             <Typography fontSize="0.8rem" sx={{ color: "#2865FD", fontWeight: 600 }}>
+-                              Actual {item.overall_progress}%
++                              Actual {activeTab === "Program" ? item.overall_progress : getStageProgress(item)}%
+                             </Typography>
+                           </Box>
+                         </TableCell>
+@@ -576,19 +570,19 @@
+                         {/* Deadline */}
+                         <TableCell sx={{ py: 2 }} align="center">
+                           <Typography fontWeight={600} fontSize="0.9rem" sx={{ color: "#727989" }}>
+-                            {item.plan_finish}
++                            {activeTab === "Program" ? item.plan_finish : item.plan_finish}
+                           </Typography>
+                         </TableCell>
+ 
+                         {/* Action — View | Edit | Hapus */}
+-                        <TableCell sx={{ py: 2 }} align="center">
++                        <TableCell sx={{ py: 2 }}>
+                           <Box sx={{ display: "flex", gap: 1, alignItems: "center", justifyContent: "center" }}>
+                             <Button
+                               size="small"
+-                              onClick={() => navigate("/program-detail", {
++                              onClick={() => navigate("/pic-program-detail", {
+                                 state: {
+-                                  from: "/rkm",
+-                                  programId: item.id_program
++                                  from: "/pic-rkm",
++                                  programId: activeTab === "Program" ? item.id_program : item.programId
+                                 }
+                               })}
+                               sx={{
+@@ -609,18 +603,33 @@
+                                 <Button
+                                   size="small"
+                                   onClick={() => {
+-                                    navigate("/pic-edit-program", {
+-                                      state: {
+-                                        from: "/rkm",
+-                                        programId: item.id_program,
+-                                        namaProgram: item.name,
+-                                        tipeProgram: item.type,
+-                                        pic: item.pic,
+-                                        status: item.status?.name,
+-                                        planStart: item.plan_start,
+-                                        planFinish: item.plan_finish,
+-                                      },
+-                                    });
++                                    if (activeTab === "Program") {
++                                      navigate("/pic-edit-program", {
++                                        state: {
++                                          from: "/pic-rkm",
++                                          programId: item.id_program,
++                                          namaProgram: item.name,
++                                          tipeProgram: item.type,
++                                          pic: item.pic,
++                                          status: item.status?.name,
++                                          planStart: item.plan_start,
++                                          planFinish: item.plan_finish,
++                                        },
++                                      });
++                                    } else {
++                                      navigate("/pic-edit-tahapan", {
++                                        state: {
++                                          from: "/pic-rkm",
++                                          programId: item.programId,
++                                          sectionId: item.id_stage,
++                                          namaTahapan: item.name,
++                                          deliverable: item.deliverable,
++                                          status: item.status?.name,
++                                          planStart: item.plan_start,
++                                          planFinish: item.plan_finish,
++                                        },
++                                      });
++                                    }
+                                   }}
+                                   sx={{
+                                     textTransform: "none",
+@@ -637,7 +646,7 @@
+                                 <Typography sx={{ fontSize: "0.8rem", color: "#DBDBDB" }}>|</Typography>
+                                 <Button
+                                   size="small"
+-                                  onClick={() => handleDelete(item.id_program)}
++                                  onClick={() => activeTab === "Program" ? handleDelete(item.id_program) : handleDeleteStage(item.id_stage)}
+                                   sx={{
+                                     textTransform: "none",
+                                     fontWeight: 700,

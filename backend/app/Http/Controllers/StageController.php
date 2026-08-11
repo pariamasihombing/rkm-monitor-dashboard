@@ -7,6 +7,13 @@ use Illuminate\Http\Request;
 
 class StageController extends Controller
 {
+    protected $progressService;
+
+    public function __construct(\App\Services\ProgressService $progressService)
+    {
+        $this->progressService = $progressService;
+    }
+
     public function store(Request $request)
     {
         $this->validate($request, [
@@ -62,6 +69,25 @@ class StageController extends Controller
 
         if (!$stage) {
             return response()->json(['message' => 'Stage not found'], 404);
+        }
+
+        // Hitung metrics untuk tahapan
+        $stageMetrics = $this->progressService->calculateMetrics($stage, 'stage');
+        $stage->expected_progress = $stageMetrics['expected_progress'];
+        $stage->actual_progress = $stageMetrics['actual_progress'];
+        $stage->gap = $stageMetrics['gap'];
+        $stage->indicator = $stageMetrics['indicator'];
+
+        // Hitung metrics untuk setiap subtask
+        if ($stage->subtasks) {
+            $stage->subtasks->transform(function ($subtask) {
+                $subtaskMetrics = $this->progressService->calculateMetrics($subtask, 'subtask');
+                $subtask->expected_progress = $subtaskMetrics['expected_progress'];
+                $subtask->actual_progress = $subtaskMetrics['actual_progress'];
+                $subtask->gap = $subtaskMetrics['gap'];
+                $subtask->indicator = $subtaskMetrics['indicator'];
+                return $subtask;
+            });
         }
 
         return response()->json($stage);

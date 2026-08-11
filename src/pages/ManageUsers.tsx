@@ -1,3 +1,4 @@
+import { apiUrl } from "../utils/api";
 import {
   Alert,
   Box,
@@ -39,8 +40,49 @@ import { useNavigate } from "react-router-dom";
 import ProfileMenu from "../components/ProfileMenu";
 import logoDanantara from "../assets/logo-danantara.png";
 import logoPelindo from "../assets/logo-pelindo.png";
-import batikOrnament from "../assets/batik 1.png";
 import { canManage } from "../utils/rbac";
+import Sidebar from "../components/Sidebar";
+
+const thRowSx = {
+  bgcolor: "#F9FAFC",
+  "& th": {
+    border: "none",
+    bgcolor: "#F9FAFC",
+    color: "#727989",
+    fontWeight: 600,
+    fontSize: "0.85rem",
+  },
+  "& th:first-of-type": {
+    borderTopLeftRadius: "8px",
+    borderBottomLeftRadius: "8px",
+    borderLeft: "1px solid #DBDBDB",
+    borderTop: "1px solid #DBDBDB",
+    borderBottom: "1px solid #DBDBDB",
+  },
+  "& th:last-of-type": {
+    borderTopRightRadius: "8px",
+    borderBottomRightRadius: "8px",
+    borderRight: "1px solid #DBDBDB",
+    borderTop: "1px solid #DBDBDB",
+    borderBottom: "1px solid #DBDBDB",
+  },
+  "& th:not(:first-of-type):not(:last-of-type)": {
+    borderTop: "1px solid #DBDBDB",
+    borderBottom: "1px solid #DBDBDB",
+  },
+};
+
+const tdRowSx = {
+  border: "2px solid #DBDBDB",
+  outline: "1px solid #DBDBDB",
+  borderRadius: "4px",
+  bgcolor: "#FFFFFF",
+  transition: "background-color 0.15s ease, box-shadow 0.15s ease",
+  "& td": { borderRadius: "4px", border: "none" },
+  "& td:first-of-type": { borderTopLeftRadius: "4px", borderBottomLeftRadius: "4px" },
+  "& td:last-of-type": { borderTopRightRadius: "4px", borderBottomRightRadius: "4px" },
+  "&:hover": { bgcolor: "#F5F8FF", boxShadow: "0 2px 12px rgba(12,75,125,0.07)" },
+};
 
 type UserRole = "Admin" | "Guest";
 type UserStatus = "Aktif" | "Nonaktif";
@@ -69,7 +111,7 @@ const initialUsers: ManagedUser[] = [
     id: 1,
     name: "Pariama Valentino",
     nip: "198904122015031002",
-    email: "pariama.valentino@pelindo.co.id",
+    email: "pariamavalentino391@gmail.com",
     password: "123456",
     role: "Admin",
     status: "Aktif",
@@ -79,7 +121,7 @@ const initialUsers: ManagedUser[] = [
     id: 2,
     name: "Reza Aditya",
     nip: "199205182018011001",
-    email: "reza.aditya@pelindo.co.id",
+    email: "REZAHIDAYAT@PELINDO.CO.ID",
     password: "123456",
     role: "Admin",
     status: "Aktif",
@@ -89,7 +131,7 @@ const initialUsers: ManagedUser[] = [
     id: 3,
     name: "Suci Wulandari",
     nip: "199411032019022004",
-    email: "suci.wulandari@pelindo.co.id",
+    email: "SMELATI@PELINDO.CO.ID",
     password: "123456",
     role: "Guest",
     status: "Nonaktif",
@@ -99,7 +141,7 @@ const initialUsers: ManagedUser[] = [
     id: 4,
     name: "Hendra Saputra",
     nip: "198711262014041003",
-    email: "hendra.saputra@pelindo.co.id",
+    email: "HENDRA@PELINDO.CO.ID",
     password: "123456",
     role: "Admin",
     status: "Aktif",
@@ -129,6 +171,33 @@ const statusStyle = (status: UserStatus) => ({
 
 export default function ManageUsers() {
   const navigate = useNavigate();
+
+  const formatLastLogin = (lastLogin?: string) => {
+    if (!lastLogin || lastLogin === "-") return "-";
+    // Jika format lama (mock), kembalikan as is, atau coba parse.
+    // Kita cek apakah ada 'T' yang biasanya menandakan ISO string.
+    if (!lastLogin.includes("T")) return lastLogin;
+
+    try {
+      const date = new Date(lastLogin);
+      if (isNaN(date.getTime())) return lastLogin;
+
+      // format: 13 Jul 2026, 09:50:54
+      const options: Intl.DateTimeFormatOptions = {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      };
+      // id-ID uses '.' for time separator, so we replace it with ':'
+      return new Intl.DateTimeFormat('id-ID', options).format(date).replace(/\./g, ':');
+    } catch {
+      return lastLogin;
+    }
+  };
+
   const [users, setUsers] = useState<ManagedUser[]>(() => {
     try {
       const storedUsers = localStorage.getItem("manageUsersData");
@@ -143,7 +212,6 @@ export default function ManageUsers() {
   const [searchQuery, setSearchQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [profileAnchor, setProfileAnchor] = useState<HTMLElement | null>(null);
-  const [activeMenu, setActiveMenu] = useState("Kelola Akun");
   const [form, setForm] = useState<UserForm>(emptyForm);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
@@ -206,7 +274,7 @@ export default function ManageUsers() {
     };
 
     try {
-      const response = await fetch("http://localhost:8000/api/users", {
+      const response = await fetch(apiUrl("/api/users"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -274,73 +342,10 @@ export default function ManageUsers() {
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "#F7F9FB" }}>
-      <Box
-        sx={{
-          width: 240,
-          position: "fixed",
-          height: "100vh",
-          p: 3,
-          pb: 0,
-          pr: 0,
-          color: "white",
-          background: "linear-gradient(180deg, #0C4B7D 0%, #2586BF 100%)",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "space-between",
-        }}
-      >
-        <Box>
-          <Typography fontWeight={700} mb={3} sx={{ fontSize: "1.1rem", lineHeight: 1.2, letterSpacing: 0.5 }}>
-            RKM Monitor
-            <br />
-            Dashboard System
-          </Typography>
-        </Box>
+      {/* ================= SIDEBAR ================= */}
+      <Sidebar activeMenu="Kelola Akun" />
 
-        <Box sx={{ px: -2 }}>
-          {menuItems.map((item) => (
-            <Button
-              key={item.label}
-              startIcon={<item.icon sx={{ fontSize: "1.4rem" }} />}
-              onClick={() => {
-                setActiveMenu(item.label);
-                navigate(item.route);
-              }}
-              sx={{
-                color: "white",
-                justifyContent: "flex-start",
-                mb: 1,
-                px: 2,
-                py: 1,
-                borderRadius: 3,
-                fontSize: "0.9rem",
-                whiteSpace: "nowrap",
-                border: "2px solid transparent",
-                fontWeight: activeMenu === item.label ? 900 : 600,
-                width: "calc(100% - 10px)",
-                ml: -1.5,
-                ...(activeMenu === item.label && {
-                  bgcolor: "rgba(255,255,255,0.25)",
-                  boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
-                  border: "2px solid rgba(255,255,255,0.4)",
-                  backdropFilter: "blur(10px)",
-                  "&:hover": { bgcolor: "rgba(255,255,255,0.3)" },
-                }),
-                ...(activeMenu !== item.label && {
-                  "&:hover": { bgcolor: "rgba(255,255,255,0.1)" },
-                }),
-              }}
-            >
-              {item.label}
-            </Button>
-          ))}
-        </Box>
-
-        <Box sx={{ marginTop: "auto", marginLeft: "-24px", width: "111%", height: "auto", display: "flex", flexDirection: "column", justifyContent: "flex-end", overflow: "hidden" }}>
-          <img src={batikOrnament} width="100%" style={{ display: "block", opacity: 1 }} />
-        </Box>
-      </Box>
-
+      {/* ================= MAIN ================= */}
       <Box sx={{ flex: 1, ml: "240px", height: "100vh", overflowY: "auto" }}>
         <Box
           sx={{
@@ -368,17 +373,9 @@ export default function ManageUsers() {
           />
         </Box>
 
-        <Box sx={{ p: 4, maxWidth: 1280, mx: "auto", pb: 8 }}>
-          <Box sx={{ mb: 3 }}>
-            <Typography fontWeight={800} sx={{ fontSize: "1.7rem", color: "#0F172A", mb: 0.5 }}>
-              Kelola Akun
-            </Typography>
-            <Typography sx={{ color: "#64748B", fontSize: "0.95rem" }}>
-              Manajemen akses pengguna sistem RKM Monitor
-            </Typography>
-          </Box>
+        <Box sx={{ p: 4, maxWidth: 1400, mx: "auto", pb: 15 }}>
 
-          <Card sx={{ mb: 3, borderRadius: 2, boxShadow: "0 2px 12px rgba(21,101,192,0.05)", border: "1px solid #E8ECF4" }}>
+          <Card sx={{ mb: 3, borderRadius: "12px", boxShadow: "0 2px 12px rgba(21,101,192,0.04)", bgcolor: "#FFFFFF" }}>
             <CardContent sx={{ p: 3, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
               <TextField
                 size="small"
@@ -390,14 +387,15 @@ export default function ManageUsers() {
                   width: "100%",
                   "& .MuiOutlinedInput-root": {
                     bgcolor: "#FFFFFF",
-                    borderRadius: "8px",
-                    "& fieldset": { borderColor: "#E2E8F0" },
+                    borderRadius: "5px",
+                    "& fieldset": { borderColor: "rgba(83,83,83,0.21)" },
+                    "&:hover fieldset": { borderColor: "rgba(83,83,83,0.21)" },
                   },
                 }}
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <SearchIcon sx={{ color: "#94A3B8" }} />
+                      <SearchIcon sx={{ color: "#9CA3AF" }} />
                     </InputAdornment>
                   ),
                 }}
@@ -424,24 +422,17 @@ export default function ManageUsers() {
             </CardContent>
           </Card>
 
-          <Card sx={{ borderRadius: 2, boxShadow: "0 2px 12px rgba(21,101,192,0.05)", border: "1px solid #E8ECF4" }}>
+          <Card sx={{ borderRadius: "12px", boxShadow: "0 2px 12px rgba(21,101,192,0.04)" }}>
             <CardContent sx={{ p: 3 }}>
-              <TableContainer>
-                <Table>
+              <TableContainer sx={{ px: 2, pb: 1 }}>
+                <Table sx={{ minWidth: 650, tableLayout: "fixed", borderCollapse: "separate", borderSpacing: "0 13px" }}>
                   <TableHead>
-                    <TableRow
-                      sx={{
-                        bgcolor: "#F9FAFC",
-                        "& th": { border: "none", bgcolor: "#F9FAFC", color: "#727989", fontWeight: 700 },
-                        "& th:first-of-type": { borderTopLeftRadius: "8px", borderBottomLeftRadius: "8px" },
-                        "& th:last-of-type": { borderTopRightRadius: "8px", borderBottomRightRadius: "8px" },
-                      }}
-                    >
-                      <TableCell>Pengguna</TableCell>
-                      <TableCell>Role</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Login Terakhir</TableCell>
-                      <TableCell align="right">Aksi</TableCell>
+                    <TableRow sx={thRowSx}>
+                      <TableCell align="center" sx={{ whiteSpace: "nowrap", width: "28%", py: 0.5 }}>User</TableCell>
+                      <TableCell align="center" sx={{ whiteSpace: "nowrap", width: "12%", py: 0.5 }}>Role</TableCell>
+                      <TableCell align="center" sx={{ whiteSpace: "nowrap", width: "12%", py: 0.5 }}>Status</TableCell>
+                      <TableCell align="center" sx={{ whiteSpace: "nowrap", width: "24%", py: 0.5 }}>Last Login</TableCell>
+                      <TableCell align="center" sx={{ whiteSpace: "nowrap", width: "24%", py: 0.5 }}>Action</TableCell>
                     </TableRow>
                   </TableHead>
 
@@ -449,12 +440,9 @@ export default function ManageUsers() {
                     {filteredUsers.map((user) => (
                       <TableRow
                         key={user.id}
-                        sx={{
-                          "& td": { borderBottom: "1px solid #EEF2F7", py: 2 },
-                          "&:hover": { bgcolor: "#FAFBFC" },
-                        }}
+                        sx={tdRowSx}
                       >
-                        <TableCell>
+                        <TableCell sx={{ py: 2, width: "28%" }}>
                           <Typography sx={{ fontWeight: 700, color: "#0F172A", fontSize: "0.92rem" }}>
                             {user.name}
                           </Typography>
@@ -462,7 +450,7 @@ export default function ManageUsers() {
                             NIP {user.nip}
                           </Typography>
                         </TableCell>
-                        <TableCell>
+                        <TableCell sx={{ py: 2, width: "12%" }} align="center">
                           <Chip
                             label={user.role}
                             size="small"
@@ -474,7 +462,7 @@ export default function ManageUsers() {
                             }}
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell sx={{ py: 2, width: "12%" }} align="center">
                           <Chip
                             label={user.status}
                             size="small"
@@ -486,13 +474,13 @@ export default function ManageUsers() {
                             }}
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell sx={{ py: 2, width: "24%" }} align="center">
                           <Typography sx={{ color: "#64748B", fontSize: "0.86rem", fontWeight: 600 }}>
-                            {user.lastLogin}
+                            {formatLastLogin(user.lastLogin)}
                           </Typography>
                         </TableCell>
-                        <TableCell align="right">
-                          <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
+                        <TableCell sx={{ py: 2, width: "24%" }} align="center">
+                          <Box sx={{ display: "flex", justifyContent: "center", gap: 1 }}>
                             <Button
                               size="small"
                               startIcon={user.status === "Aktif" ? <BlockIcon /> : <CheckCircleIcon />}

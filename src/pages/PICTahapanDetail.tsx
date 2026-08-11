@@ -1,3 +1,4 @@
+import { apiUrl } from "../utils/api";
 import {
   Box,
   Card,
@@ -23,7 +24,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import ProfileMenu from "../components/ProfileMenu";
 import logoDanantara from "../assets/logo-danantara.png";
 import logoPelindo from "../assets/logo-pelindo.png";
-import batikOrnament from "../assets/batik 1.png";
+import batikOrnament from "../assets/batik-ornament.png";
 import { programById, type TaskStatus } from "../data/programDetailMock";
 
 /* ================= STATUS CHIP STYLES ================= */
@@ -129,7 +130,7 @@ export default function PICTahapanDetail() {
             console.warn("Stage not found in mock data", { programId, stageId });
         }
       } else if (stageId) {
-        const response = await fetch(`http://localhost:8000/api/stages/${stageId}`);
+        const response = await fetch(apiUrl(`/api/stages/${stageId}`));
         if (!response.ok) throw new Error("Failed to fetch stage from API");
         const data = await response.json();
         
@@ -141,10 +142,10 @@ export default function PICTahapanDetail() {
           start: data.plan_start,
           deadline: data.plan_finish,
           notes: data.notes,
-          actual: data.subtasks?.length > 0 ? Math.round((data.subtasks.filter((t: any) => t.status?.name === "DONE").length / data.subtasks.length) * 100) : 0,
-          expected: 50, // Mocked
-          gap: 0, // Mocked
-          overdue: 0, // Mocked
+          actual: data.actual_progress ?? (data.subtasks?.length > 0 ? Math.round((data.subtasks.filter((t: any) => t.status?.name === "DONE").length / data.subtasks.length) * 100) : 0),
+          expected: data.expected_progress ?? 0,
+          gap: data.gap ?? 0,
+          overdue: data.indicator === "Overdue" ? 1 : 0,
           tasks: data.subtasks?.map((t: any) => {
             const actual = t.status?.name === "DONE" ? 100 : t.status?.name === "ON PROGRESS" ? 50 : 0;
             const expected = 50;
@@ -178,7 +179,7 @@ export default function PICTahapanDetail() {
     if (!window.confirm("Apakah Anda yakin ingin menghapus subtask ini?")) return;
 
     try {
-      const response = await fetch(`http://localhost:8000/api/subtasks/${taskId}`, {
+      const response = await fetch(apiUrl(`/api/subtasks/${taskId}`), {
         method: "DELETE",
       });
       if (response.ok) {

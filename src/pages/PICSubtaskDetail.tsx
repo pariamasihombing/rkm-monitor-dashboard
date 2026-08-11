@@ -1,3 +1,4 @@
+import { apiUrl } from "../utils/api";
 import {
   Box,
   Card,
@@ -22,7 +23,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import ProfileMenu from "../components/ProfileMenu";
 import logoDanantara from "../assets/logo-danantara.png";
 import logoPelindo from "../assets/logo-pelindo.png";
-import batikOrnament from "../assets/batik 1.png";
+import batikOrnament from "../assets/batik-ornament.png";
 import { programById, type TaskStatus } from "../data/programDetailMock";
 
 /* ================= STATUS CHIP STYLES ================= */
@@ -95,7 +96,7 @@ export default function PICSubtaskDetail() {
             console.warn("Subtask not found in mock data", { programId, stageId, taskId });
         }
       } else if (taskId) {
-        const response = await fetch(`http://localhost:8000/api/subtasks/${taskId}`);
+        const response = await fetch(apiUrl(`/api/subtasks/${taskId}`));
         if (!response.ok) throw new Error("Failed to fetch subtask from API");
         const data = await response.json();
         

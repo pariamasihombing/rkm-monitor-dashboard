@@ -1,3 +1,4 @@
+import { apiUrl } from "../utils/api";
 import {
   Box,
   Card,
@@ -29,7 +30,7 @@ import { useNavigate } from "react-router-dom";
 import ProfileMenu from "../components/ProfileMenu";
 import logoDanantara from "../assets/logo-danantara.png";
 import logoPelindo from "../assets/logo-pelindo.png";
-import batikOrnament from "../assets/batik 1.png";
+import batikOrnament from "../assets/batik-ornament.png";
 import { canManage } from "../utils/rbac";
 
 /* ================= TYPES ================= */
@@ -50,12 +51,29 @@ interface Task {
   deadline: string;
   status: string;
   actualProgress: number;
+  expectedProgress?: number;
+  gapProgress?: number;
+  daysLate?: number;
+  alertType?: string;
 }
 
 interface Program {
   id: number;
   name: string;
 }
+
+interface ApiProgram {
+  id_program: number;
+  name: string;
+}
+
+interface WeeklyMonitoringResponse {
+  metrics?: Metrics;
+  tasks?: Task[];
+  overdueBehindTasks?: Task[];
+}
+
+type WeekOption = "Last Week" | "This Week" | "Next Week";
 
 /* ================= HELPERS ================= */
 
@@ -86,7 +104,7 @@ export default function WeeklyMonitoring() {
   const navigate = useNavigate();
 
   /* ---- filter states ---- */
-  const [selectedWeek, setSelectedWeek] = useState<"Last Week" | "This Week" | "Next Week">("This Week");
+  const [selectedWeek, setSelectedWeek] = useState<WeekOption>("This Week");
 
   // Calculate dates based on selectedWeek
   const dateRange = (() => {
@@ -107,6 +125,7 @@ export default function WeeklyMonitoring() {
     newlyStarted: 0,
   });
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [overdueBehindTasks, setOverdueBehindTasks] = useState<Task[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -127,19 +146,18 @@ export default function WeeklyMonitoring() {
 
   /* ---- fetch programs list for dropdown ---- */
   useEffect(() => {
-    fetch("http://localhost:8000/api/programs")
+    fetch(apiUrl("/api/programs"))
       .then((r) => r.json())
-      .then((data: any[]) => {
+      .then((data: ApiProgram[]) => {
         setPrograms(
-          data.map((p: any) => ({ id: p.id_program, name: p.name }))
+          data.map((p) => ({ id: p.id_program, name: p.name }))
         );
       })
       .catch(() => { });
   }, []);
 
   /* ---- fetch weekly monitoring data ---- */
-  const fetchWeeklyData = () => {
-    setIsLoading(true);
+  useEffect(() => {
     const params = new URLSearchParams();
     params.set("start_date", dateRange.start);
     params.set("end_date", dateRange.end);
@@ -147,25 +165,28 @@ export default function WeeklyMonitoring() {
     if (selectedProgram !== "All") params.set("program_id", selectedProgram);
     if (searchQuery.trim()) params.set("search", searchQuery.trim());
 
-    fetch(`http://localhost:8000/api/weekly-monitoring?${params.toString()}`)
+    const loadingTimer = window.setTimeout(() => setIsLoading(true), 0);
+
+    fetch(apiUrl(`/api/weekly-monitoring?${params.toString()}`))
       .then((r) => r.json())
-      .then((data) => {
+      .then((data: WeeklyMonitoringResponse) => {
         setMetrics(data.metrics ?? {
           dueThisWeek: 0, completedThisWeek: 0,
           overdueCarryover: 0, newlyStarted: 0,
         });
         setTasks(data.tasks ?? []);
+        setOverdueBehindTasks(data.overdueBehindTasks ?? []);
       })
       .catch(() => {
         setMetrics({ dueThisWeek: 0, completedThisWeek: 0, overdueCarryover: 0, newlyStarted: 0 });
         setTasks([]);
+        setOverdueBehindTasks([]);
       })
-      .finally(() => setIsLoading(false));
-  };
-
-  useEffect(() => {
-    fetchWeeklyData();
-  }, [selectedWeek, selectedStatus, selectedProgram, searchQuery]);
+      .finally(() => {
+        window.clearTimeout(loadingTimer);
+        setIsLoading(false);
+      });
+  }, [dateRange.start, dateRange.end, selectedStatus, selectedProgram, searchQuery]);
 
   /* ---- card config ---- */
   const summaryCards = [
@@ -176,21 +197,24 @@ export default function WeeklyMonitoring() {
   ];
 
   /* ---- shared table header style ---- */
-  const thRowSx = {
-    bgcolor: "#F9FAFC",
-    "& th": { border: "none", bgcolor: "#F9FAFC" },
+  const createThRowSx = (bgcolor: string, borderColor: string) => ({
+    bgcolor,
+    "& th": { border: "none", bgcolor },
     "& th:first-of-type": {
       borderTopLeftRadius: "8px", borderBottomLeftRadius: "8px",
-      borderLeft: "1px solid #DBDBDB", borderTop: "1px solid #DBDBDB", borderBottom: "1px solid #DBDBDB",
+      borderLeft: `1px solid ${borderColor}`, borderTop: `1px solid ${borderColor}`, borderBottom: `1px solid ${borderColor}`,
     },
     "& th:last-of-type": {
       borderTopRightRadius: "8px", borderBottomRightRadius: "8px",
-      borderRight: "1px solid #DBDBDB", borderTop: "1px solid #DBDBDB", borderBottom: "1px solid #DBDBDB",
+      borderRight: `1px solid ${borderColor}`, borderTop: `1px solid ${borderColor}`, borderBottom: `1px solid ${borderColor}`,
     },
     "& th:not(:first-of-type):not(:last-of-type)": {
-      borderTop: "1px solid #DBDBDB", borderBottom: "1px solid #DBDBDB",
+      borderTop: `1px solid ${borderColor}`, borderBottom: `1px solid ${borderColor}`,
     },
-  };
+  });
+
+  const dueThRowSx = createThRowSx("#F1F7FF", "#C9DFFF");
+  const overdueThRowSx = createThRowSx("#FFF1F3", "#F4C9D1");
 
   const thCellSx = {
     fontWeight: 600, fontSize: "0.85rem", color: "#727989", py: 0.5, whiteSpace: "nowrap",
@@ -202,6 +226,13 @@ export default function WeeklyMonitoring() {
     "& td:first-of-type": { borderTopLeftRadius: "4px", borderBottomLeftRadius: "4px" },
     "& td:last-of-type": { borderTopRightRadius: "4px", borderBottomRightRadius: "4px" },
     "&:hover": { bgcolor: "#FAFAFA" },
+  };
+
+  const overdueRowSx = {
+    ...tbRowSx,
+    border: "2px solid #FFE0E6",
+    outline: "1px solid #FFE0E6",
+    "&:hover": { bgcolor: "#FFF8FA" },
   };
 
   /* ---- status chip helper ---- */
@@ -219,6 +250,149 @@ export default function WeeklyMonitoring() {
           border: isNotStarted ? "1px solid #DBDBDB" : isDone ? "1px solid #A5D6A7" : "1px solid #C3DDFF",
         }}
       />
+    );
+  };
+
+  const overdueBadge = (item: Task) => {
+    if (!item.daysLate) return null;
+
+    return (
+      <Chip
+        label={`${item.daysLate} days`}
+        size="small"
+        sx={{
+          bgcolor: "#FFE5EA",
+          color: "#E9004A",
+          border: "1px solid #FFC1CC",
+          fontWeight: 700,
+          borderRadius: "10px",
+          mr: 1,
+        }}
+      />
+    );
+  };
+
+  const renderTaskTable = (
+    title: string,
+    tableTasks: Task[],
+    tone: "due" | "overdue",
+    emptyMessage: string
+  ) => {
+    const isOverdue = tone === "overdue";
+
+    return (
+      <Card
+        sx={{
+          boxShadow: "0 2px 12px rgba(21,101,192,0.04)",
+          mb: 3,
+          border: isOverdue ? "1px solid #FFE7EC" : "1px solid #E4F0FF",
+        }}
+      >
+        <CardContent sx={{ p: 3 }}>
+          <Typography fontWeight={700} fontSize="1.05rem" sx={{ ml: 1, mb: 1 }}>
+            {title}
+          </Typography>
+
+          <TableContainer sx={{ px: 2, pb: 1 }}>
+            <Table sx={{ minWidth: 650, borderCollapse: "separate", borderSpacing: "0 13px" }}>
+              <TableHead>
+                <TableRow sx={isOverdue ? overdueThRowSx : dueThRowSx}>
+                  <TableCell align="center" sx={{ ...thCellSx, width: "22%" }}>Program/Project</TableCell>
+                  <TableCell align="center" sx={{ ...thCellSx, width: "14%" }}>Tahapan</TableCell>
+                  <TableCell align="center" sx={{ ...thCellSx, width: "24%" }}>Subtask</TableCell>
+                  <TableCell align="center" sx={{ ...thCellSx, width: "10%" }}>Deadline</TableCell>
+                  <TableCell align="center" sx={{ ...thCellSx, width: "8%" }}>Progress</TableCell>
+                  <TableCell align="center" sx={{ ...thCellSx, width: "14%" }}>Status</TableCell>
+                  <TableCell align="center" sx={{ ...thCellSx, width: "8%" }}>Action</TableCell>
+                </TableRow>
+              </TableHead>
+
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+                      <CircularProgress size={28} />
+                    </TableCell>
+                  </TableRow>
+                ) : tableTasks.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} align="center" sx={{ py: 4, color: "#9CA3AF", fontWeight: 500 }}>
+                      {emptyMessage}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  tableTasks.map((item, idx) => (
+                    <TableRow
+                      key={`${tone}-${item.id}`}
+                      className="anim-fadein-up"
+                      style={{ animationDelay: `${0.1 + idx * 0.07}s` }}
+                      sx={{
+                        ...(isOverdue ? overdueRowSx : tbRowSx),
+                        transition: "background-color 0.15s ease",
+                        "&:hover": { bgcolor: isOverdue ? "#FFF8FA" : "#F5F8FF" },
+                      }}
+                    >
+                      <TableCell sx={{ py: 2 }}>
+                        <Typography fontWeight={600} fontSize="0.9rem" sx={{ color: "#000000" }}>
+                          {item.programName}
+                        </Typography>
+                      </TableCell>
+
+                      <TableCell sx={{ py: 2 }}>
+                        <Typography fontWeight={600} fontSize="0.85rem" sx={{ color: "#727989" }}>
+                          {item.stageName}
+                        </Typography>
+                      </TableCell>
+
+                      <TableCell sx={{ py: 2 }}>
+                        <Typography fontWeight={600} fontSize="0.85rem" sx={{ color: isOverdue ? "#111827" : "#727989" }}>
+                          {item.subtaskName}
+                        </Typography>
+                      </TableCell>
+
+                      <TableCell align="center" sx={{ py: 2 }}>
+                        <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 0.5, flexWrap: "wrap" }}>
+                          {isOverdue && overdueBadge(item)}
+                          <Typography fontWeight={600} fontSize="0.9rem" sx={{ color: "#727989" }}>
+                            {item.deadline}
+                          </Typography>
+                        </Box>
+                      </TableCell>
+
+                      <TableCell align="center" sx={{ py: 2 }}>
+                        <Typography fontWeight={700} fontSize="0.9rem" sx={{ color: isOverdue ? "#E9004A" : "#2865FD" }}>
+                          {item.actualProgress}%
+                        </Typography>
+                        {isOverdue && item.expectedProgress !== undefined && (
+                          <Typography fontWeight={600} fontSize="0.72rem" sx={{ color: "#9CA3AF" }}>
+                            exp {item.expectedProgress}%
+                          </Typography>
+                        )}
+                      </TableCell>
+
+                      <TableCell align="center" sx={{ py: 2 }}>
+                        {statusChip(item.status)}
+                      </TableCell>
+
+                      <TableCell align="center" sx={{ py: 2 }}>
+                        <Button
+                          size="small"
+                          onClick={() => navigate("/program-detail", {
+                            state: { from: "/weekly-monitoring", programId: item.programId }
+                          })}
+                          sx={{ textTransform: "none", fontWeight: 700, color: "#2196F3", fontSize: "0.9rem", "&:hover": { bgcolor: "transparent" } }}
+                        >
+                          View
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </CardContent>
+      </Card>
     );
   };
 
@@ -309,7 +483,7 @@ export default function WeeklyMonitoring() {
                   select
                   size="small"
                   value={selectedWeek}
-                  onChange={(e) => setSelectedWeek(e.target.value as any)}
+                  onChange={(e) => setSelectedWeek(e.target.value as WeekOption)}
                   fullWidth
                   sx={{
                     "& .MuiOutlinedInput-root": {
@@ -412,108 +586,8 @@ export default function WeeklyMonitoring() {
             ))}
           </Box>
 
-          {/* ================= DUE THIS WEEK TABLE ================= */}
-          <Card sx={{ boxShadow: "0 2px 12px rgba(21,101,192,0.04)", mb: 3 }}>
-            <CardContent sx={{ p: 3 }}>
-              <Typography fontWeight={700} fontSize="1.05rem" sx={{ ml: 1, mb: 1 }}>
-                Due This Week
-              </Typography>
-
-              <TableContainer sx={{ px: 2, pb: 1 }}>
-                <Table sx={{ minWidth: 650, borderCollapse: "separate", borderSpacing: "0 13px" }}>
-                  <TableHead>
-                    <TableRow sx={thRowSx}>
-                      <TableCell align="center" sx={{ ...thCellSx, width: "22%" }}>Program/Project</TableCell>
-                      <TableCell align="center" sx={{ ...thCellSx, width: "14%" }}>Tahapan</TableCell>
-                      <TableCell align="center" sx={{ ...thCellSx, width: "24%" }}>Subtask</TableCell>
-                      <TableCell align="center" sx={{ ...thCellSx, width: "10%" }}>Deadline</TableCell>
-                      <TableCell align="center" sx={{ ...thCellSx, width: "8%" }}>Progress</TableCell>
-                      <TableCell align="center" sx={{ ...thCellSx, width: "14%" }}>Status</TableCell>
-                      <TableCell align="center" sx={{ ...thCellSx, width: "8%" }}>Action</TableCell>
-                    </TableRow>
-                  </TableHead>
-
-                  <TableBody>
-                    {isLoading ? (
-                      <TableRow>
-                        <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
-                          <CircularProgress size={28} />
-                        </TableCell>
-                      </TableRow>
-                    ) : tasks.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={7} align="center" sx={{ py: 4, color: "#9CA3AF", fontWeight: 500 }}>
-                          Tidak ada tugas yang jatuh tempo minggu ini.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      tasks.map((item, idx) => (
-                        <TableRow
-                          key={item.id}
-                          className="anim-fadein-up"
-                          style={{ animationDelay: `${0.1 + idx * 0.07}s` }}
-                          sx={{ ...tbRowSx, transition: "background-color 0.15s ease", "&:hover": { bgcolor: "#F5F8FF" } }}
-                        >
-                          {/* Program/Project */}
-                          <TableCell sx={{ py: 2 }}>
-                            <Typography fontWeight={600} fontSize="0.9rem" sx={{ color: "#000000" }}>
-                              {item.programName}
-                            </Typography>
-                          </TableCell>
-
-                          {/* Tahapan */}
-                          <TableCell sx={{ py: 2 }}>
-                            <Typography fontWeight={600} fontSize="0.85rem" sx={{ color: "#727989" }}>
-                              {item.stageName}
-                            </Typography>
-                          </TableCell>
-
-                          {/* Subtask */}
-                          <TableCell sx={{ py: 2 }}>
-                            <Typography fontWeight={600} fontSize="0.85rem" sx={{ color: "#727989" }}>
-                              {item.subtaskName}
-                            </Typography>
-                          </TableCell>
-
-                          {/* Deadline */}
-                          <TableCell align="center" sx={{ py: 2 }}>
-                            <Typography fontWeight={600} fontSize="0.9rem" sx={{ color: "#727989" }}>
-                              {item.deadline}
-                            </Typography>
-                          </TableCell>
-
-                          {/* Progress */}
-                          <TableCell align="center" sx={{ py: 2 }}>
-                            <Typography fontWeight={700} fontSize="0.9rem" sx={{ color: "#2865FD" }}>
-                              {item.actualProgress}%
-                            </Typography>
-                          </TableCell>
-
-                          {/* Status */}
-                          <TableCell align="center" sx={{ py: 2 }}>
-                            {statusChip(item.status)}
-                          </TableCell>
-
-                          {/* Action */}
-                          <TableCell align="center" sx={{ py: 2 }}>
-                            <Button
-                              size="small"
-                              onClick={() => navigate("/program-detail", {
-                                state: { from: "/weekly-monitoring", programId: item.programId }
-                              })}
-                              sx={{ textTransform: "none", fontWeight: 700, color: "#2196F3", fontSize: "0.9rem", "&:hover": { bgcolor: "transparent" } }}
-                            >
-                              View
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </CardContent>
-          </Card>
+          {renderTaskTable("Due This Week", tasks, "due", "Tidak ada tugas yang jatuh tempo minggu ini.")}
+          {renderTaskTable("Overdue & Behind", overdueBehindTasks, "overdue", "Tidak ada tugas yang overdue atau tertinggal.")}
 
         </Box>
       </Box>

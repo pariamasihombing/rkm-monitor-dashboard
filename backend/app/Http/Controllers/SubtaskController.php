@@ -7,9 +7,32 @@ use Illuminate\Http\Request;
 
 class SubtaskController extends Controller
 {
+    protected $progressService;
+
+    public function __construct(\App\Services\ProgressService $progressService)
+    {
+        $this->progressService = $progressService;
+    }
+
+    private function syncParentStatus(Subtask $subtask): void
+    {
+        // Load relasi stage dan program jika belum dimuat
+        $stage = $subtask->stage ?? $subtask->load('stage.subtasks.status')->stage;
+        if (!$stage) return;
+
+        // Reload subtasks agar hitungan akurat setelah perubahan
+        $stage->load(['subtasks.status']);
+        $this->progressService->syncStatus($stage, 'stage');
+
+        $program = $stage->program ?? $stage->load('program.stages.subtasks.status')->program;
+        if (!$program) return;
+
+        $program->load(['stages.subtasks.status']);
+        $this->progressService->syncStatus($program, 'program');
+    }
     public function show($id)
     {
-        $subtask = Subtask::with(['stage', 'status'])->find($id);
+        $subtask = Subtask::with(['stage.program', 'status'])->find($id);
 
         if (!$subtask) {
             return response()->json(['message' => 'Subtask not found'], 404);
@@ -85,7 +108,9 @@ class SubtaskController extends Controller
 
         $subtask = Subtask::create($data);
         // Reload status relationship
-        $subtask->load('status');
+        $subtask->load(['status', 'stage.program']);
+        // Auto-sync status tahapan dan program induk
+        $this->syncParentStatus($subtask);
         return response()->json($subtask, 201);
     }
 
@@ -160,7 +185,9 @@ class SubtaskController extends Controller
         }
 
         $subtask->update($data);
-        $subtask->load('status');
+        $subtask->load(['status', 'stage.program']);
+        // Auto-sync status tahapan dan program induk
+        $this->syncParentStatus($subtask);
         return response()->json($subtask);
     }
 
@@ -172,7 +199,18 @@ class SubtaskController extends Controller
             return response()->json(['message' => 'Subtask not found'], 404);
         }
 
+        // Simpan referensi stage sebelum dihapus
+        $subtask->load(['stage.subtasks.status', 'stage.program.stages.subtasks.status']);
         $subtask->delete();
+        // Auto-sync status setelah hapus
+        if ($subtask->stage) {
+            $subtask->stage->load(['subtasks.status']);
+            $this->progressService->syncStatus($subtask->stage, 'stage');
+            if ($subtask->stage->program) {
+                $subtask->stage->program->load(['stages.subtasks.status']);
+                $this->progressService->syncStatus($subtask->stage->program, 'program');
+            }
+        }
         return response()->json(['message' => 'Subtask deleted successfully']);
     }
 }
